@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server that provides Zig language tooling, code analysis, and documentation access. This server enhances AI capabilities with Zig-specific functionality including code optimization, compute unit estimation, code generation, and best practices recommendations.
 
+<a href="https://glama.ai/mcp/servers/oxiw2bsb15"><img width="380" height="200" src="https://glama.ai/mcp/servers/oxiw2bsb15/badge" alt="Zig Server MCP server" /></a>
+
 ## Features
 
 ### Tools
