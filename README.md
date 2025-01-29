@@ -1,4 +1,5 @@
 # Zig MCP Server
+[![smithery badge](https://smithery.ai/badge/zig-mcp-server)](https://smithery.ai/server/zig-mcp-server)
 
 A Model Context Protocol (MCP) server that provides Zig language tooling, code analysis, and documentation access. This server enhances AI capabilities with Zig-specific functionality including code optimization, compute unit estimation, code generation, and best practices recommendations.
 
@@ -83,6 +84,15 @@ Provides code improvement recommendations and best practices:
 
 ## Installation
 
+### Installing via Smithery
+
+To install Zig MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/zig-mcp-server):
+
+```bash
+npx -y @smithery/cli install zig-mcp-server --client claude
+```
+
+### Manual Installation
 1. Clone the repository:
 ```bash
 git clone [repository-url]
