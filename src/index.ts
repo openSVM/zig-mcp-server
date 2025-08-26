@@ -18,7 +18,7 @@ class ZigServer {
     this.server = new Server(
       {
         name: 'zig-mcp-server',
-        version: '0.1.0',
+        version: '0.2.0',
       },
       {
         capabilities: {
@@ -230,8 +230,8 @@ class ZigServer {
 
   private async fetchZigDocs(section: 'language' | 'std'): Promise<string> {
     try {
-      // Fetch from Zig's official documentation
-      const response = await axios.get(`https://ziglang.org/documentation/master/${section === 'language' ? 'index' : 'std'}.html`);
+      // Fetch from Zig's official documentation for version 0.14.1
+      const response = await axios.get(`https://ziglang.org/documentation/0.14.1/${section === 'language' ? 'index' : 'std'}.html`);
       return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -344,19 +344,25 @@ ${analysis.allocations}
 
   private analyzeMemoryUsage(code: string): string {
     const patterns = {
-      heapAlloc: /std\.(ArrayList|StringHashMap|AutoHashMap)/g,
+      heapAlloc: /std\.(ArrayList|StringHashMap|AutoHashMap|HashMap)/g,
       stackAlloc: /var\s+\w+\s*:\s*\[(\d+)\]/g,
-      slices: /\[\](?:u8|i32|f64)/g,
+      slices: /\[\](?:u8|i32|f64|usize|isize)/g,
+      multiArrayList: /std\.MultiArrayList/g,
+      boundedArray: /std\.BoundedArray/g,
     };
 
     const heapAllocs = (code.match(patterns.heapAlloc) || []).length;
     const stackAllocs = (code.match(patterns.stackAlloc) || []).length;
     const sliceUsage = (code.match(patterns.slices) || []).length;
+    const multiArrayLists = (code.match(patterns.multiArrayList) || []).length;
+    const boundedArrays = (code.match(patterns.boundedArray) || []).length;
 
     return `
 - Heap Allocations: ${heapAllocs} detected
 - Stack Allocations: ${stackAllocs} detected
 - Slice Usage: ${sliceUsage} instances
+- MultiArrayList: ${multiArrayLists} instances
+- BoundedArray: ${boundedArrays} instances
 - Memory Profile: ${heapAllocs > stackAllocs ? 'Heap-heavy' : 'Stack-optimized'}
     `.trim();
   }
@@ -515,7 +521,12 @@ pub const MyStruct = struct {
     }
 
     pub fn deinit(self: *MyStruct) void {
-        // Cleanup
+        // Cleanup allocated resources
+        _ = self; // suppress unused variable warning
+    }
+    
+    pub fn getData(self: *const MyStruct) []const u8 {
+        return self.data;
     }
 };
     `.trim();
@@ -530,6 +541,7 @@ pub const MyStruct = struct {
 ${fnHeader} {
     ${requirements.errorHandling ? 'if (input.len == 0) return Error.InvalidInput;' : ''}
     // Function implementation
+    _ = input; // suppress unused parameter warning if not used
 }
     `.trim();
   }
@@ -616,6 +628,14 @@ ${analysis.performance}
     if (code.includes('std.fmt.allocPrint')) {
       patterns.push('- Consider using formatters or bufPrint when possible');
     }
+    
+    // Check for outdated Zig syntax (pre-0.11)
+    if (code.match(/@intCast\(\s*\w+\s*,/)) {
+      patterns.push('- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)');
+    }
+    if (code.match(/@floatCast\(\s*\w+\s*,/)) {
+      patterns.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
+    }
 
     return patterns.length > 0 ? patterns.join('\n') : '- No significant pattern issues detected';
   }
@@ -662,16 +682,22 @@ ${analysis.performance}
       recommendations.push('- Use comptime when possible');
       recommendations.push('- Consider using packed structs for memory optimization');
       recommendations.push('- Implement custom allocators for specific use cases');
+      recommendations.push('- Use @inline for small hot functions');
+      recommendations.push('- Consider using @Vector for SIMD operations');
     }
     if (prompt.toLowerCase().includes('safety')) {
       recommendations.push('- Add bounds checking for array access');
-      recommendations.push('- Use explicit error handling');
-      recommendations.push('- Implement proper resource cleanup');
+      recommendations.push('- Use explicit error handling with try/catch');
+      recommendations.push('- Implement proper resource cleanup with defer');
+      recommendations.push('- Use const where possible to prevent mutations');
+      recommendations.push('- Avoid undefined behavior with proper initialization');
     }
     if (prompt.toLowerCase().includes('maintainability')) {
       recommendations.push('- Add comprehensive documentation');
       recommendations.push('- Break down complex functions');
       recommendations.push('- Use meaningful variable names');
+      recommendations.push('- Organize code into modules and namespaces');
+      recommendations.push('- Write unit tests for public functions');
     }
 
     return recommendations.join('\n');
