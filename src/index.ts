@@ -234,7 +234,7 @@ class ZigServer {
         },
         {
           name: 'get_recommendations',
-          description: 'Get comprehensive code improvement recommendations and best practices',
+          description: 'Get comprehensive, multi-dimensional code analysis with 10+ specialized analyzers covering style, safety, performance, concurrency, metaprogramming, testing, build systems, interop, metrics, and modern Zig patterns',
           inputSchema: {
             type: 'object',
             properties: {
@@ -244,7 +244,7 @@ class ZigServer {
               },
               prompt: {
                 type: 'string',
-                description: 'Natural language query for specific recommendations',
+                description: 'Natural language query for specific recommendations (performance, safety, maintainability, concurrency, architecture, etc.)',
               },
             },
             required: ['code'],
@@ -719,43 +719,156 @@ ${code}
   private async getRecommendations(code: string, prompt?: string): Promise<string> {
     Logger.debug(`Analyzing code for recommendations${prompt ? ` with focus: ${prompt}` : ''}`);
 
+    // Comprehensive analysis using all enhanced analysis methods
     const analysis = {
       style: ZigStyleChecker.analyzeCodeStyle(code),
       patterns: ZigStyleChecker.analyzePatterns(code),
       safety: ZigStyleChecker.analyzeSafety(code),
       performance: ZigStyleChecker.analyzePerformance(code),
+      concurrency: ZigStyleChecker.analyzeConcurrency(code),
+      metaprogramming: ZigStyleChecker.analyzeMetaprogramming(code),
+      testing: ZigStyleChecker.analyzeTesting(code),
+      buildSystem: ZigStyleChecker.analyzeBuildSystem(code),
+      interop: ZigStyleChecker.analyzeInterop(code),
+      metrics: ZigStyleChecker.analyzeCodeMetrics(code),
+      modernPatterns: ZigStyleChecker.analyzeModernZigPatterns(code),
     };
 
     let recommendations = `
-# Code Analysis and Recommendations
+# 🔍 Comprehensive Zig Code Analysis
 
-## Style and Conventions:
+## 📐 Style and Conventions
 ${analysis.style}
 
-## Design Patterns:
+## 🏗️ Design Patterns & Architecture
 ${analysis.patterns}
 
-## Safety Considerations:
+## 🛡️ Safety & Security Analysis
 ${analysis.safety}
 
-## Performance Insights:
+## ⚡ Performance Analysis
 ${analysis.performance}
 
-## Modern Zig Best Practices:
-- Use meaningful names following snake_case convention
-- Leverage comptime for compile-time computations
-- Implement proper error handling with error unions
-- Use defer for automatic resource cleanup
-- Consider memory allocation patterns carefully
-- Add comprehensive documentation for public APIs
+## 🧵 Concurrency & Threading
+${analysis.concurrency}
+
+## 🎨 Metaprogramming & Compile-time
+${analysis.metaprogramming}
+
+## 🧪 Testing & Quality Assurance
+${analysis.testing}
+
+## 🔧 Build System Integration
+${analysis.buildSystem}
+
+## 🔗 Interoperability
+${analysis.interop}
+
+## 📊 Code Metrics & Maintainability
+${analysis.metrics}
+
+## ✨ Modern Zig Patterns (0.12+)
+${analysis.modernPatterns}
+
+## 🎯 Best Practices Summary
+- **Memory Management**: Use RAII patterns with defer, prefer arena allocators for batch operations
+- **Error Handling**: Implement comprehensive error unions and proper propagation
+- **Performance**: Leverage comptime evaluation, consider SIMD for data-parallel operations
+- **Safety**: Enable runtime safety in debug builds, use explicit initialization
+- **Testing**: Maintain high test coverage with property-based testing where applicable
+- **Documentation**: Use comprehensive doc comments (//!) for modules and (///) for functions
+- **Modern Patterns**: Adopt Zig 0.12+ syntax and leverage new standard library features
+- **Build System**: Use build.zig.zon for dependency management, support cross-compilation
+- **Code Quality**: Maintain low cyclomatic complexity, follow single responsibility principle
+- **Concurrency**: Use proper synchronization primitives, consider async/await for I/O bound tasks
+
+## 🚀 Advanced Optimization Recommendations
+- **Compile-time Optimization**: Move more computations to comptime where possible
+- **Memory Layout**: Use packed structs for memory-critical applications
+- **SIMD Utilization**: Consider vectorization for mathematical operations
+- **Profile-Guided Optimization**: Use zig build -Doptimize=ReleaseFast -Dcpu=native
+- **Static Analysis**: Integrate additional linting tools in your build pipeline
+- **Fuzzing**: Implement fuzz testing for input validation functions
+- **Benchmarking**: Add performance regression tests for critical paths
     `.trim();
 
+    // Add context-specific recommendations based on the prompt
     if (prompt) {
-      recommendations += `\n\n## Specific Recommendations for "${prompt}":\n`;
+      recommendations += `\n\n## 🎯 Specific Recommendations for "${prompt}":\n`;
       recommendations += this.getSpecificRecommendations(code, prompt);
+      
+      // Add advanced context-specific analysis
+      recommendations += this.getAdvancedContextRecommendations(code, prompt);
     }
 
     return recommendations;
+  }
+
+  private getAdvancedContextRecommendations(code: string, prompt: string): string {
+    const advanced: string[] = [];
+    const contextLower = prompt.toLowerCase();
+
+    // === PERFORMANCE CONTEXT ===
+    if (contextLower.includes('performance') || contextLower.includes('optimization')) {
+      advanced.push('\n### 🔥 Advanced Performance Strategies:');
+      advanced.push('- **Hot Path Analysis**: Profile with perf to identify bottlenecks');
+      advanced.push('- **Memory Allocator Tuning**: Consider custom allocators for specific workloads');
+      advanced.push('- **Cache Optimization**: Align data structures to cache line boundaries');
+      advanced.push('- **Branch Prediction**: Use @branchHint for predictable branches');
+      advanced.push('- **Inlining Strategy**: Profile inline vs call overhead for hot functions');
+      advanced.push('- **SIMD Exploitation**: Use @Vector for parallel arithmetic operations');
+      advanced.push('- **Compile-time Constants**: Move runtime calculations to comptime where possible');
+    }
+
+    // === SAFETY CONTEXT ===
+    if (contextLower.includes('safety') || contextLower.includes('security')) {
+      advanced.push('\n### 🛡️ Advanced Safety & Security:');
+      advanced.push('- **Memory Safety**: Enable AddressSanitizer in debug builds');
+      advanced.push('- **Integer Safety**: Use @setRuntimeSafety(true) for critical calculations');
+      advanced.push('- **Crypto Safety**: Use constant-time operations for sensitive data');
+      advanced.push('- **Input Validation**: Implement comprehensive bounds checking');
+      advanced.push('- **Error Recovery**: Design graceful degradation for error conditions');
+      advanced.push('- **Resource Limits**: Implement timeouts and resource quotas');
+      advanced.push('- **Fuzzing Strategy**: Generate test cases for edge conditions');
+    }
+
+    // === MAINTAINABILITY CONTEXT ===
+    if (contextLower.includes('maintainability') || contextLower.includes('refactor')) {
+      advanced.push('\n### 🔧 Advanced Maintainability:');
+      advanced.push('- **Module Design**: Follow single responsibility principle strictly');
+      advanced.push('- **API Design**: Minimize public surface area, use const parameters');
+      advanced.push('- **Type Safety**: Leverage Zig\'s type system for compile-time guarantees');
+      advanced.push('- **Documentation**: Use doctests for executable examples');
+      advanced.push('- **Versioning**: Plan for API evolution with semantic versioning');
+      advanced.push('- **Testing Strategy**: Implement property-based testing for complex functions');
+      advanced.push('- **Code Metrics**: Monitor complexity trends over time');
+    }
+
+    // === CONCURRENCY CONTEXT ===
+    if (contextLower.includes('concurrent') || contextLower.includes('thread') || contextLower.includes('async')) {
+      advanced.push('\n### 🧵 Advanced Concurrency Patterns:');
+      advanced.push('- **Lock-free Design**: Use atomic operations where possible');
+      advanced.push('- **Work Stealing**: Implement efficient task distribution');
+      advanced.push('- **Memory Ordering**: Understand acquire/release semantics');
+      advanced.push('- **Async Patterns**: Design for cooperative multitasking');
+      advanced.push('- **Resource Pooling**: Minimize allocation in concurrent contexts');
+      advanced.push('- **Deadlock Prevention**: Establish lock ordering conventions');
+      advanced.push('- **Performance Monitoring**: Track contention and utilization metrics');
+    }
+
+    // === ARCHITECTURE CONTEXT ===
+    if (contextLower.includes('architecture') || contextLower.includes('design')) {
+      advanced.push('\n### 🏗️ Advanced Architectural Patterns:');
+      advanced.push('- **Dependency Injection**: Use comptime-based DI for testability');
+      advanced.push('- **Event Sourcing**: Consider immutable event logs for state management');
+      advanced.push('- **Plugin Architecture**: Design for extensibility with comptime interfaces');
+      advanced.push('- **Error Boundaries**: Implement fault isolation strategies');
+      advanced.push('- **Configuration Management**: Use comptime for compile-time configuration');
+      advanced.push('- **Observability**: Build in logging, metrics, and tracing from the start');
+      advanced.push('- **Backward Compatibility**: Plan for API evolution strategies');
+    }
+
+    return advanced.join('\n');
   }
 
   private getSpecificRecommendations(code: string, prompt: string): string {
