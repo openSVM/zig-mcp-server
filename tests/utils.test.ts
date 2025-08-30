@@ -1,0 +1,303 @@
+import { ZigCodeAnalyzer, ZigStyleChecker, ZigCodeGenerator } from '../src/utils.js';
+
+describe('ZigCodeAnalyzer', () => {
+  describe('analyzeMemoryUsage', () => {
+    it('should detect heap allocations', () => {
+      const code = `
+        const list = std.ArrayList(u8).init(allocator);
+        const map = std.StringHashMap(i32).init(allocator);
+      `;
+      const result = ZigCodeAnalyzer.analyzeMemoryUsage(code);
+      expect(result).toContain('Heap Allocations: 2 detected');
+      expect(result).toContain('Heap-heavy');
+    });
+
+    it('should detect stack allocations', () => {
+      const code = `
+        var buffer: [1024]u8 = undefined;
+        var small: [64]i32 = undefined;
+      `;
+      const result = ZigCodeAnalyzer.analyzeMemoryUsage(code);
+      expect(result).toContain('Stack Allocations: 2 detected');
+      expect(result).toContain('Stack-optimized');
+    });
+
+    it('should detect slice usage', () => {
+      const code = `
+        fn process(data: []u8, numbers: []i32, floats: []f64) void {}
+      `;
+      const result = ZigCodeAnalyzer.analyzeMemoryUsage(code);
+      expect(result).toContain('Slice Usage: 3 instances');
+    });
+  });
+
+  describe('analyzeTimeComplexity', () => {
+    it('should detect simple loops', () => {
+      const code = `
+        for (items) |item| {
+          process(item);
+        }
+      `;
+      const result = ZigCodeAnalyzer.analyzeTimeComplexity(code);
+      expect(result).toContain('O(n)');
+      expect(result).toContain('Loop Count: 1');
+    });
+
+    it('should detect nested loops', () => {
+      const code = `
+        for (matrix) |row| {
+          for (row) |cell| {
+            process(cell);
+          }
+        }
+      `;
+      const result = ZigCodeAnalyzer.analyzeTimeComplexity(code);
+      expect(result).toContain('O(n²)');
+      expect(result).toContain('Nested Loops: 1');
+    });
+
+    it('should detect recursion', () => {
+      const code = `
+        fn fibonacci(n: u64) u64 {
+          if (n <= 1) return n;
+          return fibonacci(n - 1) + fibonacci(n - 2);
+        }
+      `;
+      const result = ZigCodeAnalyzer.analyzeTimeComplexity(code);
+      expect(result).toContain('recursive calls');
+    });
+  });
+
+  describe('analyzeAllocations', () => {
+    it('should detect comptime usage', () => {
+      const code = `
+        comptime var size = 1024;
+        comptime {
+          // compile time block
+        }
+      `;
+      const result = ZigCodeAnalyzer.analyzeAllocations(code);
+      expect(result).toContain('Comptime Evaluations: 2');
+    });
+
+    it('should detect arena allocators', () => {
+      const code = `
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+      `;
+      const result = ZigCodeAnalyzer.analyzeAllocations(code);
+      expect(result).toContain('Arena Allocators: 1');
+      expect(result).toContain('Arena-based allocation');
+    });
+
+    it('should detect fixed buffer allocators', () => {
+      const code = `
+        var buffer: [1024]u8 = undefined;
+        var fba = std.heap.FixedBufferAllocator.init(&buffer);
+      `;
+      const result = ZigCodeAnalyzer.analyzeAllocations(code);
+      expect(result).toContain('Fixed Buffer Allocators: 1');
+      expect(result).toContain('Fixed buffer allocation');
+    });
+  });
+});
+
+describe('ZigStyleChecker', () => {
+  describe('analyzeCodeStyle', () => {
+    it('should detect PascalCase variables', () => {
+      const code = 'const MyVariable = 42;';
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Use snake_case for variable names instead of PascalCase');
+    });
+
+    it('should detect camelCase variables', () => {
+      const code = 'const myVariable = 42;';
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Use snake_case for variable names instead of camelCase');
+    });
+
+    it('should detect trailing whitespace', () => {
+      const code = 'const value = 42;   \n';
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Remove trailing whitespace');
+    });
+
+    it('should detect tabs', () => {
+      const code = 'const\tvalue = 42;';
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Use spaces instead of tabs for indentation');
+    });
+
+    it('should detect missing documentation', () => {
+      const code = 'pub fn test() void {}';
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Add documentation comments for public declarations');
+    });
+
+    it('should accept properly formatted code', () => {
+      const code = `
+//! Proper documentation
+const my_value = 42;
+      `.trim();
+      const result = ZigStyleChecker.analyzeCodeStyle(code);
+      expect(result).toContain('Code follows Zig style guidelines');
+    });
+  });
+
+  describe('analyzePatterns', () => {
+    it('should detect ArrayList without deinit', () => {
+      const code = `
+        const list = std.ArrayList(u8).init(allocator);
+        // No deinit call
+      `;
+      const result = ZigStyleChecker.analyzePatterns(code);
+      expect(result).toContain('Consider implementing deinit for proper cleanup');
+    });
+
+    it('should detect infinite loops', () => {
+      const code = 'while (true) { break; }';
+      const result = ZigStyleChecker.analyzePatterns(code);
+      expect(result).toContain('Consider using labeled breaks for clearer loop control');
+    });
+
+    it('should detect allocPrint usage', () => {
+      const code = 'const str = try std.fmt.allocPrint(allocator, "test");';
+      const result = ZigStyleChecker.analyzePatterns(code);
+      expect(result).toContain('Consider using formatters or bufPrint when possible');
+    });
+  });
+
+  describe('analyzeSafety', () => {
+    it('should detect missing error handling', () => {
+      const code = 'pub fn riskyFunction() !void { return; }';
+      const result = ZigStyleChecker.analyzeSafety(code);
+      expect(result).toContain('Add error handling for functions that can fail');
+    });
+
+    it('should detect undefined usage', () => {
+      const code = 'var value: i32 = undefined;';
+      const result = ZigStyleChecker.analyzeSafety(code);
+      expect(result).toContain('Initialize variables explicitly instead of using undefined');
+    });
+
+    it('should detect pointer casts', () => {
+      const code = 'const ptr = @ptrCast(*u8, some_ptr);';
+      const result = ZigStyleChecker.analyzeSafety(code);
+      expect(result).toContain('Review pointer casts for safety implications');
+    });
+  });
+
+  describe('analyzePerformance', () => {
+    it('should detect ArrayList without capacity', () => {
+      const code = 'const list = std.ArrayList(u8).init(allocator);';
+      const result = ZigStyleChecker.analyzePerformance(code);
+      expect(result).toContain('Consider pre-allocating ArrayList capacity');
+    });
+
+    it('should detect arithmetic that could be comptime', () => {
+      const code = 'const result = 1 + 2 + 3;';
+      const result = ZigStyleChecker.analyzePerformance(code);
+      expect(result).toContain('Use comptime for constant expressions');
+    });
+
+    it('should suggest crypto optimizations', () => {
+      const code = 'const hash = std.crypto.hash.sha256.hash(data);';
+      const result = ZigStyleChecker.analyzePerformance(code);
+      expect(result).toContain('Consider using batch processing for crypto operations');
+    });
+  });
+});
+
+describe('ZigCodeGenerator', () => {
+  describe('parseRequirements', () => {
+    it('should detect error handling requirements', () => {
+      const prompt = 'Create a function that handles errors properly';
+      const result = ZigCodeGenerator.parseRequirements(prompt);
+      expect(result.errorHandling).toBe(true);
+    });
+
+    it('should detect testing requirements', () => {
+      const prompt = 'Build a function with comprehensive tests';
+      const result = ZigCodeGenerator.parseRequirements(prompt);
+      expect(result.testing).toBe(true);
+    });
+
+    it('should detect performance requirements', () => {
+      const prompt = 'Create a fast, optimized data structure';
+      const result = ZigCodeGenerator.parseRequirements(prompt);
+      expect(result.performance).toBe(true);
+    });
+
+    it('should detect struct features', () => {
+      const prompt = 'Create a struct for user data';
+      const result = ZigCodeGenerator.parseRequirements(prompt);
+      expect(result.features.has('struct')).toBe(true);
+      expect(result.features.has('create')).toBe(true);
+    });
+  });
+
+  describe('generateZigCode', () => {
+    it('should generate basic function', () => {
+      const requirements = {
+        features: new Set(['function']),
+        errorHandling: false,
+        testing: false,
+        performance: false,
+      };
+      const result = ZigCodeGenerator.generateZigCode(requirements);
+      expect(result).toContain('//! Generated Zig code');
+      expect(result).toContain('const std = @import("std");');
+      expect(result).toContain('pub fn process');
+    });
+
+    it('should generate struct with error handling', () => {
+      const requirements = {
+        features: new Set(['struct']),
+        errorHandling: true,
+        testing: false,
+        performance: false,
+      };
+      const result = ZigCodeGenerator.generateZigCode(requirements);
+      expect(result).toContain('const Error = error{');
+      expect(result).toContain('pub const MyStruct = struct');
+      expect(result).toContain('Error!');
+    });
+
+    it('should include tests when requested', () => {
+      const requirements = {
+        features: new Set(['function']),
+        errorHandling: false,
+        testing: true,
+        performance: false,
+      };
+      const result = ZigCodeGenerator.generateZigCode(requirements);
+      expect(result).toContain('const testing = std.testing;');
+      expect(result).toContain('test "basic functionality"');
+    });
+
+    it('should generate enum', () => {
+      const requirements = {
+        features: new Set(['enum']),
+        errorHandling: false,
+        testing: false,
+        performance: false,
+      };
+      const result = ZigCodeGenerator.generateZigCode(requirements);
+      expect(result).toContain('pub const MyEnum = enum');
+      expect(result).toContain('toString');
+      expect(result).toContain('fromString');
+    });
+
+    it('should generate union', () => {
+      const requirements = {
+        features: new Set(['union']),
+        errorHandling: false,
+        testing: false,
+        performance: false,
+      };
+      const result = ZigCodeGenerator.generateZigCode(requirements);
+      expect(result).toContain('pub const MyUnion = union(enum)');
+      expect(result).toContain('getTypeName');
+      expect(result).toContain('format');
+    });
+  });
+});
