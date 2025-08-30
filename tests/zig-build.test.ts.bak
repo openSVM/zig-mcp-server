@@ -1,4 +1,4 @@
-import { ZigBuildSystemHelper } from '../src/zig-build.js';
+import { ZigBuildSystemHelper } from '../src/zig-build';
 
 describe('ZigBuildSystemHelper', () => {
   describe('generateBuildZig', () => {
@@ -63,8 +63,8 @@ describe('ZigBuildSystemHelper', () => {
 
     it('should include dependencies', () => {
       const dependencies = [
-        { name: 'args', url: 'https://github.com/MasterQ32/zig-args' },
-        { name: 'json', url: 'https://github.com/getty-zig/json' },
+        { name: 'args', url: 'https://github.com/MasterQ32/zig-args', path: 'args.zig' },
+        { name: 'json', url: 'https://github.com/getty-zig/json', path: 'json.zig' },
       ];
       const result = ZigBuildSystemHelper.generateBuildZon(dependencies);
       

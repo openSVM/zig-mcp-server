@@ -1,4 +1,4 @@
-import { ZigCodeAnalyzer, ZigStyleChecker, ZigCodeGenerator } from '../src/utils.js';
+import { ZigCodeAnalyzer, ZigStyleChecker, ZigCodeGenerator } from '../src/utils';
 
 describe('ZigCodeAnalyzer', () => {
   describe('analyzeMemoryUsage', () => {
