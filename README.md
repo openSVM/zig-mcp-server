@@ -225,7 +225,7 @@ const result = await useMcpTool("zig", "get_recommendations", {
         var i: u32 = 0;
         while (true) {
             if (i >= 100) break;
-            try list.append(@intCast(u8, i));
+            try list.append(@intCast(i));
             i += 1;
         }
     }

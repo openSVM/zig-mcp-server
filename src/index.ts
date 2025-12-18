@@ -429,6 +429,7 @@ class ZigServer {
 
   private async fetchZigDocs(section: 'language' | 'std'): Promise<string> {
     try {
+
       Logger.debug(`Fetching Zig docs for section: ${section}`);
       // Fetch from Zig's official documentation
       const url = `https://ziglang.org/documentation/master/${section === 'language' ? 'index' : 'std'}.html`;
@@ -495,6 +496,7 @@ class ZigServer {
     // Check for common patterns that can be optimized
     if (code.includes('std.ArrayList')) {
       optimizations.push('Consider pre-allocating ArrayList capacity if size is known');
+      optimizations.push('Use ArrayListUnmanaged for better cache locality and reduced indirection');
     }
     if (code.includes('std.fmt.allocPrint')) {
       optimizations.push('Consider using std.fmt.bufPrint for stack allocation when possible');
@@ -507,6 +509,45 @@ class ZigServer {
     }
     if (code.match(/for\s*\([^)]*\)\s*\{[^}]*std\.fmt\.print/)) {
       optimizations.push('Avoid I/O operations in hot loops for better performance');
+    }
+    
+    // SIMD and vectorization opportunities
+    if (code.match(/for\s*\([^)]*\)\s*\|[^|]*\|\s*{[^}]*[+\-*/][^}]*}/)) {
+      optimizations.push('Consider using @Vector for SIMD operations on numeric arrays');
+    }
+    if (code.includes('[]f32') || code.includes('[]f64')) {
+      optimizations.push('Float arrays can benefit from vectorized operations using @Vector');
+    }
+    
+    // Comptime optimizations
+    if (code.match(/const\s+\w+\s*=\s*\d+/)) {
+      optimizations.push('Move constant calculations to comptime using comptime var');
+    }
+    if (code.includes('std.crypto') || code.includes('std.hash')) {
+      optimizations.push('Consider comptime evaluation for constant hash/crypto operations');
+    }
+    
+    // Memory layout optimizations
+    if (code.includes('struct {')) {
+      optimizations.push('Consider using packed struct for memory efficiency if appropriate');
+      optimizations.push('Order struct fields by size (largest first) for optimal packing');
+    }
+    
+    // Function call optimizations
+    if (code.match(/fn\s+\w+[^{]*{[^}]{1,50}}/)) {
+      optimizations.push('Consider @inline for small hot functions (under ~50 lines)');
+    }
+    if (code.includes('std.math')) {
+      optimizations.push('Use builtin math functions like @sqrt, @sin, @cos for better performance');
+    }
+    
+    // Modern Zig collection optimizations
+    if (code.includes('std.HashMap')) {
+      optimizations.push('Consider ArrayHashMap for better cache locality with small datasets');
+      optimizations.push('Use HashMap.initWithContext for custom hash/equality functions');
+    }
+    if (code.includes('std.MultiArrayList')) {
+      optimizations.push('MultiArrayList provides better cache efficiency for struct-of-arrays pattern');
     }
 
     // Build mode specific optimizations
@@ -611,20 +652,59 @@ ${analysis.allocations}
 
   private analyzeMemoryUsage(code: string): string {
     const patterns = {
-      heapAlloc: /std\.(ArrayList|StringHashMap|AutoHashMap)/g,
+      heapAlloc: /std\.(ArrayList|StringHashMap|AutoHashMap|HashMap)/g,
       stackAlloc: /var\s+\w+\s*:\s*\[(\d+)\]/g,
-      slices: /\[\](?:u8|i32|f64)/g,
+      slices: /\[\](?:u8|i32|f64|usize|isize|f32|i64|u32|u64|i16|u16)/g,
+      multiArrayList: /std\.MultiArrayList/g,
+      boundedArray: /std\.BoundedArray/g,
+      vectorTypes: /@Vector\(\s*\d+\s*,/g,
+      packedStruct: /packed\s+struct/g,
+      alignedTypes: /@alignOf|align\(\d+\)/g,
+      allocators: /std\.heap\.(ArenaAllocator|FixedBufferAllocator|GeneralPurposeAllocator|page_allocator)/g,
+      arrayListUnmanaged: /ArrayListUnmanaged/g,
+      simdAlignment: /@alignOf\(.*@Vector/g,
     };
 
     const heapAllocs = (code.match(patterns.heapAlloc) || []).length;
     const stackAllocs = (code.match(patterns.stackAlloc) || []).length;
     const sliceUsage = (code.match(patterns.slices) || []).length;
+    const multiArrayLists = (code.match(patterns.multiArrayList) || []).length;
+    const boundedArrays = (code.match(patterns.boundedArray) || []).length;
+    const vectorTypes = (code.match(patterns.vectorTypes) || []).length;
+    const packedStructs = (code.match(patterns.packedStruct) || []).length;
+    const alignedTypes = (code.match(patterns.alignedTypes) || []).length;
+    const allocators = (code.match(patterns.allocators) || []).length;
+    const arrayListUnmanaged = (code.match(patterns.arrayListUnmanaged) || []).length;
+    const simdAlignment = (code.match(patterns.simdAlignment) || []).length;
+
+    const recommendations = [];
+    
+    if (heapAllocs > arrayListUnmanaged && heapAllocs > 0) {
+      recommendations.push('Consider ArrayListUnmanaged for reduced pointer indirection');
+    }
+    if (vectorTypes > 0 && simdAlignment === 0) {
+      recommendations.push('Ensure SIMD vectors are properly aligned for optimal performance');
+    }
+    if (sliceUsage > 0 && multiArrayLists === 0 && heapAllocs > 2) {
+      recommendations.push('Consider MultiArrayList for better cache locality with multiple arrays');
+    }
+    if (stackAllocs === 0 && boundedArrays === 0 && heapAllocs > 0) {
+      recommendations.push('Consider BoundedArray for small, stack-allocated dynamic arrays');
+    }
 
     return `
 - Heap Allocations: ${heapAllocs} detected
-- Stack Allocations: ${stackAllocs} detected
+- Stack Allocations: ${stackAllocs} detected  
 - Slice Usage: ${sliceUsage} instances
+- MultiArrayList: ${multiArrayLists} instances (SoA pattern for cache efficiency)
+- BoundedArray: ${boundedArrays} instances (stack-allocated dynamic arrays)
+- Vector Types: ${vectorTypes} instances (SIMD support)
+- Packed Structs: ${packedStructs} instances (memory optimization)
+- Aligned Types: ${alignedTypes} instances (alignment optimization)
+- Custom Allocators: ${allocators} instances
+- ArrayListUnmanaged: ${arrayListUnmanaged} instances (reduced overhead)
 - Memory Profile: ${heapAllocs > stackAllocs ? 'Heap-heavy' : 'Stack-optimized'}
+${recommendations.length > 0 ? '\nRecommendations:\n' + recommendations.map(r => `- ${r}`).join('\n') : ''}
     `.trim();
   }
 
@@ -633,11 +713,21 @@ ${analysis.allocations}
       loops: /(?:while|for)\s*\(/g,
       nestedLoops: /(?:while|for)[^{]*\{[^}]*(?:while|for)/g,
       recursion: /fn\s+\w+[^{]*\{[^}]*\w+\s*\([^)]*\)/g,
+      vectorOperations: /@Vector\([^)]*\)[^;]*[+\-*/]/g,
+      builtinMath: /@(?:sqrt|sin|cos|exp|log|pow)\s*\(/g,
+      memoryOps: /@(?:memcpy|memset|memmove)\s*\(/g,
+      simdReductions: /@reduce\s*\(/g,
+      parallelizable: /std\.Thread|std\.atomic/g,
     };
 
     const loops = (code.match(patterns.loops) || []).length;
     const nestedLoops = (code.match(patterns.nestedLoops) || []).length;
     const recursion = (code.match(patterns.recursion) || []).length;
+    const vectorOps = (code.match(patterns.vectorOperations) || []).length;
+    const builtinMath = (code.match(patterns.builtinMath) || []).length;
+    const memoryOps = (code.match(patterns.memoryOps) || []).length;
+    const simdReductions = (code.match(patterns.simdReductions) || []).length;
+    const parallelizable = (code.match(patterns.parallelizable) || []).length;
 
     let complexity = 'O(1)';
     if (nestedLoops > 0) {
@@ -654,6 +744,12 @@ ${analysis.allocations}
 - Loop Count: ${loops}
 - Nested Loops: ${nestedLoops}
 - Recursive Patterns: ${recursion} detected
+- Vector Operations: ${vectorOps} (SIMD optimization opportunities)
+- Builtin Math Functions: ${builtinMath} (hardware-optimized)
+- Memory Operations: ${memoryOps} (optimized bulk operations)
+- SIMD Reductions: ${simdReductions} (parallel reductions)
+- Threading/Atomic Operations: ${parallelizable} (parallelization potential)
+${optimizationNotes.length > 0 ? '\nOptimization Notes:\n' + optimizationNotes.map(note => `- ${note}`).join('\n') : ''}
     `.trim();
   }
 
@@ -662,17 +758,56 @@ ${analysis.allocations}
       comptime: /comptime\s/g,
       arena: /std\.heap\.ArenaAllocator/g,
       fixedBuf: /std\.heap\.FixedBufferAllocator/g,
+      gpa: /std\.heap\.GeneralPurposeAllocator/g,
+      pageAlloc: /std\.heap\.page_allocator/g,
+      stackFallback: /std\.heap\.StackFallbackAllocator/g,
+      alignedAlloc: /alignedAlloc|@alignOf/g,
+      defer: /defer\s/g,
+      errdefer: /errdefer\s/g,
+      embedFile: /@embedFile\s*\(/g,
+      comptimeEval: /comptime\s+{[^}]+}/g,
     };
 
     const comptimeUsage = (code.match(patterns.comptime) || []).length;
     const arenaAlloc = (code.match(patterns.arena) || []).length;
     const fixedBufAlloc = (code.match(patterns.fixedBuf) || []).length;
+    const gpaAlloc = (code.match(patterns.gpa) || []).length;
+    const pageAlloc = (code.match(patterns.pageAlloc) || []).length;
+    const stackFallback = (code.match(patterns.stackFallback) || []).length;
+    const alignedAllocs = (code.match(patterns.alignedAlloc) || []).length;
+    const deferUsage = (code.match(patterns.defer) || []).length;
+    const errdeferUsage = (code.match(patterns.errdefer) || []).length;
+    const embedFileUsage = (code.match(patterns.embedFile) || []).length;
+    const comptimeEvals = (code.match(patterns.comptimeEval) || []).length;
+
+    const allocatorRecommendations = [];
+    if (arenaAlloc === 0 && fixedBufAlloc === 0 && gpaAlloc === 0) {
+      allocatorRecommendations.push('Consider using specialized allocators for better performance');
+    }
+    if (alignedAllocs > 0) {
+      allocatorRecommendations.push('SIMD-aligned allocations detected - good for vectorization');
+    }
+    if (deferUsage === 0 && (arenaAlloc > 0 || fixedBufAlloc > 0)) {
+      allocatorRecommendations.push('Add defer statements for proper cleanup');
+    }
+    if (embedFileUsage > 0) {
+      allocatorRecommendations.push('Compile-time file embedding reduces runtime I/O');
+    }
 
     return `
-- Comptime Evaluations: ${comptimeUsage}
-- Arena Allocators: ${arenaAlloc}
-- Fixed Buffer Allocators: ${fixedBufAlloc}
-- Allocation Strategy: ${this.determineAllocStrategy(arenaAlloc, fixedBufAlloc)}
+- Comptime Evaluations: ${comptimeUsage} (compile-time optimization)
+- Comptime Blocks: ${comptimeEvals} (complex compile-time evaluation)
+- Arena Allocators: ${arenaAlloc} (batch allocation/cleanup)
+- Fixed Buffer Allocators: ${fixedBufAlloc} (stack-based allocation)
+- General Purpose Allocators: ${gpaAlloc} (debugging/development)
+- Page Allocators: ${pageAlloc} (large allocations)
+- Stack Fallback Allocators: ${stackFallback} (hybrid stack/heap)
+- Aligned Allocations: ${alignedAllocs} (SIMD optimization)
+- Defer Statements: ${deferUsage} (cleanup automation)
+- Errdefer Statements: ${errdeferUsage} (error cleanup)
+- Embedded Files: ${embedFileUsage} (compile-time resources)
+- Allocation Strategy: ${this.determineAllocStrategy(arenaAlloc, fixedBufAlloc, gpaAlloc, pageAlloc)}
+${allocatorRecommendations.length > 0 ? '\nAllocator Recommendations:\n' + allocatorRecommendations.map(r => `- ${r}`).join('\n') : ''}
     `.trim();
   }
 
@@ -897,6 +1032,14 @@ ${analysis.modernPatterns}
       recommendations.push('- Use meaningful variable and function names');
       recommendations.push('- Implement proper module structure');
       recommendations.push('- Add comprehensive test coverage');
+    }
+    
+    // Check for outdated Zig syntax (pre-0.11)
+    if (code.match(/@intCast\(\s*\w+\s*,/)) {
+      patterns.push('- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)');
+    }
+    if (code.match(/@floatCast\(\s*\w+\s*,/)) {
+      patterns.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
     }
 
     if (prompt.toLowerCase().includes('memory')) {
