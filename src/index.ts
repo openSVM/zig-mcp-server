@@ -739,6 +739,14 @@ ${recommendations.length > 0 ? '\nRecommendations:\n' + recommendations.map(r =>
       complexity += ' with recursive calls';
     }
 
+    const optimizationNotes: string[] = [];
+    if (vectorOps === 0 && loops > 0) {
+      optimizationNotes.push('Consider vectorization for numeric operations');
+    }
+    if (parallelizable > 0) {
+      optimizationNotes.push('Thread safety requires careful synchronization');
+    }
+
     return `
 - Estimated Complexity: ${complexity}
 - Loop Count: ${loops}
@@ -811,8 +819,11 @@ ${allocatorRecommendations.length > 0 ? '\nAllocator Recommendations:\n' + alloc
     `.trim();
   }
 
-  private determineAllocStrategy(arenaCount: number, fixedBufCount: number): string {
-    if (arenaCount > 0 && fixedBufCount > 0) {
+  private determineAllocStrategy(arenaCount: number, fixedBufCount: number, gpaCount: number, pageAllocCount: number): string {
+    const counts = { arenaCount, fixedBufCount, gpaCount, pageAllocCount };
+    const activeStrategies = Object.entries(counts).filter(([_, count]) => count > 0);
+    
+    if (activeStrategies.length > 1) {
       return 'Mixed allocation strategy';
     }
     if (arenaCount > 0) {
@@ -820,6 +831,12 @@ ${allocatorRecommendations.length > 0 ? '\nAllocator Recommendations:\n' + alloc
     }
     if (fixedBufCount > 0) {
       return 'Fixed buffer allocation';
+    }
+    if (gpaCount > 0) {
+      return 'General purpose allocation';
+    }
+    if (pageAllocCount > 0) {
+      return 'Page-based allocation';
     }
     return 'Default allocator usage';
   }
@@ -1036,10 +1053,10 @@ ${analysis.modernPatterns}
     
     // Check for outdated Zig syntax (pre-0.11)
     if (code.match(/@intCast\(\s*\w+\s*,/)) {
-      patterns.push('- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)');
+      recommendations.push('- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)');
     }
     if (code.match(/@floatCast\(\s*\w+\s*,/)) {
-      patterns.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
+      recommendations.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
     }
 
     if (prompt.toLowerCase().includes('memory')) {
