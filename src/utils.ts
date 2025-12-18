@@ -909,7 +909,7 @@ export class ZigStyleChecker {
 
     // === SIMD AND VECTORIZATION ===
     // SIMD opportunities
-    if (code.match(/for\s*\([^)]*\)\s*\{[^}]*[+\-*/][^}]*\}/s) && !code.includes('@Vector')) {
+    if (code.match(/for\s*\([^)]*\)\s*\{[^}]*[+*/-][^}]*\}/s) && !code.includes('@Vector')) {
       optimizations.push('- Math operations in loops - consider SIMD vectorization with @Vector');
     }
 
@@ -962,7 +962,7 @@ export class ZigStyleChecker {
     }
 
     // Integer vs floating point
-    if (code.match(/f\d+.*[+\-*/].*f\d+/) && code.includes('round')) {
+    if (code.match(/f\d+.*[+*/-].*f\d+/) && code.includes('round')) {
       optimizations.push(
         '- Floating point with rounding - consider integer arithmetic where possible'
       );

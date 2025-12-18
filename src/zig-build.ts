@@ -29,7 +29,7 @@ export class ZigBuildSystemHelper {
     } = config;
 
     return `//! Build script for Zig project
-//! Zig version: ${zigVersion}+
+//! Zig version: ${zigVersion} or later
 //! Modern build system with enhanced module support
 
 const std = @import("std");
