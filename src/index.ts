@@ -234,7 +234,8 @@ class ZigServer {
         },
         {
           name: 'get_recommendations',
-          description: 'Get comprehensive, multi-dimensional code analysis with 10+ specialized analyzers covering style, safety, performance, concurrency, metaprogramming, testing, build systems, interop, metrics, and modern Zig patterns',
+          description:
+            'Get comprehensive, multi-dimensional code analysis with 10+ specialized analyzers covering style, safety, performance, concurrency, metaprogramming, testing, build systems, interop, metrics, and modern Zig patterns',
           inputSchema: {
             type: 'object',
             properties: {
@@ -244,7 +245,8 @@ class ZigServer {
               },
               prompt: {
                 type: 'string',
-                description: 'Natural language query for specific recommendations (performance, safety, maintainability, concurrency, architecture, etc.)',
+                description:
+                  'Natural language query for specific recommendations (performance, safety, maintainability, concurrency, architecture, etc.)',
               },
             },
             required: ['code'],
@@ -429,7 +431,6 @@ class ZigServer {
 
   private async fetchZigDocs(section: 'language' | 'std'): Promise<string> {
     try {
-
       Logger.debug(`Fetching Zig docs for section: ${section}`);
       // Fetch from Zig's official documentation
       const url = `https://ziglang.org/documentation/master/${section === 'language' ? 'index' : 'std'}.html`;
@@ -496,7 +497,9 @@ class ZigServer {
     // Check for common patterns that can be optimized
     if (code.includes('std.ArrayList')) {
       optimizations.push('Consider pre-allocating ArrayList capacity if size is known');
-      optimizations.push('Use ArrayListUnmanaged for better cache locality and reduced indirection');
+      optimizations.push(
+        'Use ArrayListUnmanaged for better cache locality and reduced indirection'
+      );
     }
     if (code.includes('std.fmt.allocPrint')) {
       optimizations.push('Consider using std.fmt.bufPrint for stack allocation when possible');
@@ -510,7 +513,7 @@ class ZigServer {
     if (code.match(/for\s*\([^)]*\)\s*\{[^}]*std\.fmt\.print/)) {
       optimizations.push('Avoid I/O operations in hot loops for better performance');
     }
-    
+
     // SIMD and vectorization opportunities
     if (code.match(/for\s*\([^)]*\)\s*\|[^|]*\|\s*{[^}]*[+\-*/][^}]*}/)) {
       optimizations.push('Consider using @Vector for SIMD operations on numeric arrays');
@@ -518,7 +521,7 @@ class ZigServer {
     if (code.includes('[]f32') || code.includes('[]f64')) {
       optimizations.push('Float arrays can benefit from vectorized operations using @Vector');
     }
-    
+
     // Comptime optimizations
     if (code.match(/const\s+\w+\s*=\s*\d+/)) {
       optimizations.push('Move constant calculations to comptime using comptime var');
@@ -526,28 +529,32 @@ class ZigServer {
     if (code.includes('std.crypto') || code.includes('std.hash')) {
       optimizations.push('Consider comptime evaluation for constant hash/crypto operations');
     }
-    
+
     // Memory layout optimizations
     if (code.includes('struct {')) {
       optimizations.push('Consider using packed struct for memory efficiency if appropriate');
       optimizations.push('Order struct fields by size (largest first) for optimal packing');
     }
-    
+
     // Function call optimizations
     if (code.match(/fn\s+\w+[^{]*{[^}]{1,50}}/)) {
       optimizations.push('Consider @inline for small hot functions (under ~50 lines)');
     }
     if (code.includes('std.math')) {
-      optimizations.push('Use builtin math functions like @sqrt, @sin, @cos for better performance');
+      optimizations.push(
+        'Use builtin math functions like @sqrt, @sin, @cos for better performance'
+      );
     }
-    
+
     // Modern Zig collection optimizations
     if (code.includes('std.HashMap')) {
       optimizations.push('Consider ArrayHashMap for better cache locality with small datasets');
       optimizations.push('Use HashMap.initWithContext for custom hash/equality functions');
     }
     if (code.includes('std.MultiArrayList')) {
-      optimizations.push('MultiArrayList provides better cache efficiency for struct-of-arrays pattern');
+      optimizations.push(
+        'MultiArrayList provides better cache efficiency for struct-of-arrays pattern'
+      );
     }
 
     // Build mode specific optimizations
@@ -660,7 +667,8 @@ ${analysis.allocations}
       vectorTypes: /@Vector\(\s*\d+\s*,/g,
       packedStruct: /packed\s+struct/g,
       alignedTypes: /@alignOf|align\(\d+\)/g,
-      allocators: /std\.heap\.(ArenaAllocator|FixedBufferAllocator|GeneralPurposeAllocator|page_allocator)/g,
+      allocators:
+        /std\.heap\.(ArenaAllocator|FixedBufferAllocator|GeneralPurposeAllocator|page_allocator)/g,
       arrayListUnmanaged: /ArrayListUnmanaged/g,
       simdAlignment: /@alignOf\(.*@Vector/g,
     };
@@ -678,7 +686,7 @@ ${analysis.allocations}
     const simdAlignment = (code.match(patterns.simdAlignment) || []).length;
 
     const recommendations = [];
-    
+
     if (heapAllocs > arrayListUnmanaged && heapAllocs > 0) {
       recommendations.push('Consider ArrayListUnmanaged for reduced pointer indirection');
     }
@@ -686,7 +694,9 @@ ${analysis.allocations}
       recommendations.push('Ensure SIMD vectors are properly aligned for optimal performance');
     }
     if (sliceUsage > 0 && multiArrayLists === 0 && heapAllocs > 2) {
-      recommendations.push('Consider MultiArrayList for better cache locality with multiple arrays');
+      recommendations.push(
+        'Consider MultiArrayList for better cache locality with multiple arrays'
+      );
     }
     if (stackAllocs === 0 && boundedArrays === 0 && heapAllocs > 0) {
       recommendations.push('Consider BoundedArray for small, stack-allocated dynamic arrays');
@@ -819,10 +829,15 @@ ${allocatorRecommendations.length > 0 ? '\nAllocator Recommendations:\n' + alloc
     `.trim();
   }
 
-  private determineAllocStrategy(arenaCount: number, fixedBufCount: number, gpaCount: number, pageAllocCount: number): string {
+  private determineAllocStrategy(
+    arenaCount: number,
+    fixedBufCount: number,
+    gpaCount: number,
+    pageAllocCount: number
+  ): string {
     const counts = { arenaCount, fixedBufCount, gpaCount, pageAllocCount };
     const activeStrategies = Object.entries(counts).filter(([_, count]) => count > 0);
-    
+
     if (activeStrategies.length > 1) {
       return 'Mixed allocation strategy';
     }
@@ -948,7 +963,7 @@ ${analysis.modernPatterns}
     if (prompt) {
       recommendations += `\n\n## 🎯 Specific Recommendations for "${prompt}":\n`;
       recommendations += this.getSpecificRecommendations(code, prompt);
-      
+
       // Add advanced context-specific analysis
       recommendations += this.getAdvancedContextRecommendations(code, prompt);
     }
@@ -964,12 +979,16 @@ ${analysis.modernPatterns}
     if (contextLower.includes('performance') || contextLower.includes('optimization')) {
       advanced.push('\n### 🔥 Advanced Performance Strategies:');
       advanced.push('- **Hot Path Analysis**: Profile with perf to identify bottlenecks');
-      advanced.push('- **Memory Allocator Tuning**: Consider custom allocators for specific workloads');
+      advanced.push(
+        '- **Memory Allocator Tuning**: Consider custom allocators for specific workloads'
+      );
       advanced.push('- **Cache Optimization**: Align data structures to cache line boundaries');
       advanced.push('- **Branch Prediction**: Use @branchHint for predictable branches');
       advanced.push('- **Inlining Strategy**: Profile inline vs call overhead for hot functions');
       advanced.push('- **SIMD Exploitation**: Use @Vector for parallel arithmetic operations');
-      advanced.push('- **Compile-time Constants**: Move runtime calculations to comptime where possible');
+      advanced.push(
+        '- **Compile-time Constants**: Move runtime calculations to comptime where possible'
+      );
     }
 
     // === SAFETY CONTEXT ===
@@ -989,15 +1008,21 @@ ${analysis.modernPatterns}
       advanced.push('\n### 🔧 Advanced Maintainability:');
       advanced.push('- **Module Design**: Follow single responsibility principle strictly');
       advanced.push('- **API Design**: Minimize public surface area, use const parameters');
-      advanced.push('- **Type Safety**: Leverage Zig\'s type system for compile-time guarantees');
+      advanced.push("- **Type Safety**: Leverage Zig's type system for compile-time guarantees");
       advanced.push('- **Documentation**: Use doctests for executable examples');
       advanced.push('- **Versioning**: Plan for API evolution with semantic versioning');
-      advanced.push('- **Testing Strategy**: Implement property-based testing for complex functions');
+      advanced.push(
+        '- **Testing Strategy**: Implement property-based testing for complex functions'
+      );
       advanced.push('- **Code Metrics**: Monitor complexity trends over time');
     }
 
     // === CONCURRENCY CONTEXT ===
-    if (contextLower.includes('concurrent') || contextLower.includes('thread') || contextLower.includes('async')) {
+    if (
+      contextLower.includes('concurrent') ||
+      contextLower.includes('thread') ||
+      contextLower.includes('async')
+    ) {
       advanced.push('\n### 🧵 Advanced Concurrency Patterns:');
       advanced.push('- **Lock-free Design**: Use atomic operations where possible');
       advanced.push('- **Work Stealing**: Implement efficient task distribution');
@@ -1050,13 +1075,17 @@ ${analysis.modernPatterns}
       recommendations.push('- Implement proper module structure');
       recommendations.push('- Add comprehensive test coverage');
     }
-    
+
     // Check for outdated Zig syntax (pre-0.11)
     if (code.match(/@intCast\(\s*\w+\s*,/)) {
-      recommendations.push('- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)');
+      recommendations.push(
+        '- Update @intCast syntax: use @intCast(value) instead of @intCast(Type, value)'
+      );
     }
     if (code.match(/@floatCast\(\s*\w+\s*,/)) {
-      recommendations.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
+      recommendations.push(
+        '- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)'
+      );
     }
 
     if (prompt.toLowerCase().includes('memory')) {

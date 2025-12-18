@@ -299,14 +299,24 @@ exe.root_module.addImport("dep", dep.module("dep"));
 
     // Check for Zig 0.14+ patterns
     if (buildZigContent.includes('.{ .path = ') && !buildZigContent.includes('b.path(')) {
-      recommendations.push('Modernize to Zig 0.14+: use b.path("file.zig") instead of .{ .path = "file.zig" }');
+      recommendations.push(
+        'Modernize to Zig 0.14+: use b.path("file.zig") instead of .{ .path = "file.zig" }'
+      );
     }
 
-    if (buildZigContent.includes('.addModule(') && !buildZigContent.includes('root_module.addImport(')) {
-      recommendations.push('Modernize to Zig 0.14+: use exe.root_module.addImport() instead of exe.addModule()');
+    if (
+      buildZigContent.includes('.addModule(') &&
+      !buildZigContent.includes('root_module.addImport(')
+    ) {
+      recommendations.push(
+        'Modernize to Zig 0.14+: use exe.root_module.addImport() instead of exe.addModule()'
+      );
     }
 
-    if (buildZigContent.includes('linkLibrary') && !buildZigContent.includes('root_module.addImport')) {
+    if (
+      buildZigContent.includes('linkLibrary') &&
+      !buildZigContent.includes('root_module.addImport')
+    ) {
       recommendations.push('Consider using root_module.addImport() for modern module dependencies');
     }
 
@@ -328,7 +338,9 @@ exe.root_module.addImport("dep", dep.module("dep"));
     }
 
     if (!buildZigContent.includes('getEmittedDocs')) {
-      recommendations.push('Add documentation generation with getEmittedDocs() and addInstallDirectory()');
+      recommendations.push(
+        'Add documentation generation with getEmittedDocs() and addInstallDirectory()'
+      );
     }
 
     return recommendations.length > 0

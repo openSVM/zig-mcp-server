@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+#### Modernized Codebase
+- **Zig 0.14+ Support**: Updated all build system templates and examples to Zig 0.14+ patterns
+- **Modern Build API**: Migrated to `b.path()` for file references instead of `.{ .path = }`
+- **Module System**: Updated to use `root_module.addImport()` for cleaner module management
+- **Build Analysis**: Enhanced build.zig analysis to detect Zig 0.14+ patterns and provide migration guidance
+
+#### Code Quality
+- **Fixed TypeScript Errors**: Resolved all compilation errors (undefined variables, function signature mismatches)
+- **Linting Improvements**: Fixed unnecessary escape characters and other linting issues
+- **Code Formatting**: Applied Prettier formatting consistently across all source files
+
+#### Documentation
+- **Migration Guides**: Added comprehensive migration guidance from Zig 0.12 to 0.14
+- **Best Practices**: Updated best practices documentation with Zig 0.14+ patterns
+- **Enhanced Examples**: Updated all code examples to use modern Zig patterns
+
+### Added
+
+#### Build System Features
+- **Documentation Generation**: Added `getEmittedDocs()` examples for automated documentation
+- **Version Migration**: Added detection and upgrade suggestions for outdated patterns
+
 ## [0.2.0] - 2024-08-30
 
 ### Added
