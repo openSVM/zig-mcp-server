@@ -1,20 +1,52 @@
 # Zig MCP Server
 [![smithery badge](https://smithery.ai/badge/zig-mcp-server)](https://smithery.ai/server/zig-mcp-server)
 
-A Model Context Protocol (MCP) server that provides Zig language tooling, code analysis, and documentation access. This server enhances AI capabilities with Zig-specific functionality including code optimization, compute unit estimation, code generation, and best practices recommendations.
+**Modern Zig AI 10x dev assistant with comprehensive build system support**
+
+A powerful Model Context Protocol (MCP) server that provides comprehensive Zig language assistance, including modern build system support, code optimization, and best practices guidance.
 
 <a href="https://glama.ai/mcp/servers/oxiw2bsb15"><img width="380" height="200" src="https://glama.ai/mcp/servers/oxiw2bsb15/badge" alt="Zig Server MCP server" /></a>
+
+## 🚀 What's New in v0.2.0
+
+- **🏗️ Modern Build System Support**: Generate and analyze build.zig files with Zig 0.12+ patterns
+- **📦 Dependency Management**: Create build.zig.zon files for modern package management  
+- **🔧 Enhanced Code Analysis**: Improved optimization suggestions and pattern detection
+- **🧪 Comprehensive Testing**: 85+ test cases with full coverage reporting
+- **⚡ Better Performance**: Modular architecture with improved error handling
+- **📚 Extended Documentation**: Build system troubleshooting and best practices guides
+
+## 🛠️ Features
+
+### 🏗️ Build System Tools (NEW!)
+
+#### 1. Build System Generation (`generate_build_zig`)
+Generate modern build.zig files with Zig 0.12+ patterns:
+- Cross-compilation support
+- Modern dependency management
+- Test and documentation integration
+
+#### 2. Build System Analysis (`analyze_build_zig`) 
+Analyze existing build files and get modernization recommendations:
+- Detect deprecated patterns
+- Suggest Zig 0.12+ alternatives
+- Identify missing best practices
+
+#### 3. Dependency Management (`generate_build_zon`)
+Generate build.zig.zon files for modern package management:
+- Popular Zig packages catalog
+- Version management guidance
+- Best practices documentation
 
 ## Features
 
 ### Tools
 
 #### 1. Code Optimization (`optimize_code`)
-Analyzes and optimizes Zig code with support for different optimization levels:
-- Debug
-- ReleaseSafe
-- ReleaseFast
-- ReleaseSmall
+Enhanced with modern Zig patterns and build mode analysis:
+- Debug, ReleaseSafe, ReleaseFast, ReleaseSmall
+- Modern optimization suggestions  
+- Zig 0.12+ pattern recommendations
 
 ```typescript
 // Example usage

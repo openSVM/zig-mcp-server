@@ -11,14 +11,23 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import axios from 'axios';
 
+import type { OptimizationLevel, CodeAnalysisResult, GitHubRepo, ZigBuildConfig } from './types.js';
+import { ZigBuildSystemHelper } from './zig-build.js';
+import { ZigCodeAnalyzer, ZigStyleChecker, ZigCodeGenerator, Logger } from './utils.js';
+
+/**
+ * Main Zig MCP Server class
+ * Provides comprehensive Zig language assistance including build system support
+ */
 class ZigServer {
-  private server: Server;
+  private readonly server: Server;
+  private readonly version = '0.2.0';
 
   constructor() {
     this.server = new Server(
       {
         name: 'zig-mcp-server',
-        version: '0.2.0',
+        version: this.version,
       },
       {
         capabilities: {
@@ -30,72 +39,149 @@ class ZigServer {
 
     this.setupResourceHandlers();
     this.setupToolHandlers();
-    
-    this.server.onerror = (error) => console.error('[MCP Error]', error);
+
+    this.server.onerror = error => Logger.error('MCP Error', error);
+
+    // Graceful shutdown handling
     process.on('SIGINT', async () => {
+      Logger.info('Received SIGINT, shutting down gracefully...');
       await this.server.close();
       process.exit(0);
     });
+
+    process.on('SIGTERM', async () => {
+      Logger.info('Received SIGTERM, shutting down gracefully...');
+      await this.server.close();
+      process.exit(0);
+    });
+
+    Logger.info(`Zig MCP Server v${this.version} initialized`);
   }
 
-  private setupResourceHandlers() {
+  private setupResourceHandlers(): void {
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
       resources: [
         {
           uri: 'zig://docs/language-reference',
           name: 'Zig Language Reference',
           description: 'Official Zig language documentation and reference guide',
+          mimeType: 'text/html',
         },
         {
           uri: 'zig://docs/std-lib',
           name: 'Zig Standard Library Documentation',
           description: 'Documentation for the Zig standard library',
+          mimeType: 'text/html',
         },
         {
           uri: 'zig://repos/popular',
           name: 'Popular Zig Repositories',
           description: 'List of most popular Zig repositories on GitHub with insights',
+          mimeType: 'application/json',
+        },
+        {
+          uri: 'zig://build/best-practices',
+          name: 'Zig Build System Best Practices',
+          description: 'Comprehensive guide to modern Zig build system patterns',
+          mimeType: 'text/markdown',
+        },
+        {
+          uri: 'zig://build/troubleshooting',
+          name: 'Build System Troubleshooting',
+          description: 'Common build issues and their solutions',
+          mimeType: 'text/markdown',
+        },
+        {
+          uri: 'zig://examples/build-configs',
+          name: 'Example Build Configurations',
+          description: 'Sample build.zig files for different project types',
+          mimeType: 'text/plain',
         },
       ],
     }));
 
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
       const { uri } = request.params;
+      Logger.debug(`Fetching resource: ${uri}`);
 
-      switch (uri) {
-        case 'zig://docs/language-reference':
-          return {
-            contents: [{
-              uri,
-              text: await this.fetchZigDocs('language'),
-            }],
-          };
-        case 'zig://docs/std-lib':
-          return {
-            contents: [{
-              uri,
-              text: await this.fetchZigDocs('std'),
-            }],
-          };
-        case 'zig://repos/popular':
-          return {
-            contents: [{
-              uri,
-              text: await this.fetchPopularRepos(),
-            }],
-          };
-        default:
-          throw new McpError(ErrorCode.InvalidRequest, `Resource not found: ${uri}`);
+      try {
+        switch (uri) {
+          case 'zig://docs/language-reference':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'text/html',
+                  text: await this.fetchZigDocs('language'),
+                },
+              ],
+            };
+          case 'zig://docs/std-lib':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'text/html',
+                  text: await this.fetchZigDocs('std'),
+                },
+              ],
+            };
+          case 'zig://repos/popular':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'application/json',
+                  text: await this.fetchPopularRepos(),
+                },
+              ],
+            };
+          case 'zig://build/best-practices':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'text/markdown',
+                  text: ZigBuildSystemHelper.getBuildSystemBestPractices(),
+                },
+              ],
+            };
+          case 'zig://build/troubleshooting':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'text/markdown',
+                  text: ZigBuildSystemHelper.getBuildTroubleshooting(),
+                },
+              ],
+            };
+          case 'zig://examples/build-configs':
+            return {
+              contents: [
+                {
+                  uri,
+                  mimeType: 'text/plain',
+                  text: this.generateBuildExamples(),
+                },
+              ],
+            };
+          default:
+            throw new McpError(ErrorCode.InvalidRequest, `Resource not found: ${uri}`);
+        }
+      } catch (error) {
+        Logger.error(`Failed to fetch resource ${uri}`, error as Error);
+        throw error;
       }
     });
   }
 
-  private setupToolHandlers() {
+  private setupToolHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
           name: 'optimize_code',
-          description: 'Optimize Zig code for better performance',
+          description: 'Optimize Zig code for better performance with modern patterns',
           inputSchema: {
             type: 'object',
             properties: {
@@ -107,6 +193,7 @@ class ZigServer {
                 type: 'string',
                 enum: ['Debug', 'ReleaseSafe', 'ReleaseFast', 'ReleaseSmall'],
                 description: 'Optimization level to target',
+                default: 'ReleaseSafe',
               },
             },
             required: ['code'],
@@ -114,7 +201,8 @@ class ZigServer {
         },
         {
           name: 'estimate_compute_units',
-          description: 'Estimate computational complexity and resource usage',
+          description:
+            'Estimate computational complexity and resource usage with detailed analysis',
           inputSchema: {
             type: 'object',
             properties: {
@@ -128,7 +216,7 @@ class ZigServer {
         },
         {
           name: 'generate_code',
-          description: 'Generate Zig code from natural language description',
+          description: 'Generate modern Zig code from natural language descriptions',
           inputSchema: {
             type: 'object',
             properties: {
@@ -146,7 +234,7 @@ class ZigServer {
         },
         {
           name: 'get_recommendations',
-          description: 'Get code improvement recommendations and best practices',
+          description: 'Get comprehensive, multi-dimensional code analysis with 10+ specialized analyzers covering style, safety, performance, concurrency, metaprogramming, testing, build systems, interop, metrics, and modern Zig patterns',
           inputSchema: {
             type: 'object',
             properties: {
@@ -156,91 +244,213 @@ class ZigServer {
               },
               prompt: {
                 type: 'string',
-                description: 'Natural language query for specific recommendations',
+                description: 'Natural language query for specific recommendations (performance, safety, maintainability, concurrency, architecture, etc.)',
               },
             },
             required: ['code'],
           },
         },
+        {
+          name: 'generate_build_zig',
+          description: 'Generate a modern build.zig file with best practices',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectName: {
+                type: 'string',
+                description: 'Name of the project',
+                default: 'my-project',
+              },
+              projectType: {
+                type: 'string',
+                enum: ['executable', 'library', 'both'],
+                description: 'Type of project to generate',
+                default: 'executable',
+              },
+              zigVersion: {
+                type: 'string',
+                description: 'Target Zig version',
+                default: '0.12.0',
+              },
+              dependencies: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of dependencies to include',
+                default: [],
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: 'analyze_build_zig',
+          description: 'Analyze a build.zig file and provide modernization recommendations',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              buildZigContent: {
+                type: 'string',
+                description: 'Content of the build.zig file to analyze',
+              },
+            },
+            required: ['buildZigContent'],
+          },
+        },
+        {
+          name: 'generate_build_zon',
+          description: 'Generate a build.zig.zon file for dependency management',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              projectName: {
+                type: 'string',
+                description: 'Name of the project',
+                default: 'my-project',
+              },
+              dependencies: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    url: { type: 'string' },
+                  },
+                  required: ['name', 'url'],
+                },
+                description: 'List of dependencies with their URLs',
+                default: [],
+              },
+            },
+            required: [],
+          },
+        },
       ],
     }));
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async request => {
       const { name, arguments: args } = request.params;
+      Logger.debug(`Tool called: ${name}`);
 
-      switch (name) {
-        case 'optimize_code':
-          if (typeof args?.code !== 'string') {
-            throw new McpError(ErrorCode.InvalidParams, 'Code parameter must be a string');
-          }
-          return {
-            content: [{
-              type: 'text',
-              text: await this.optimizeCode(
-                args.code,
-                typeof args.optimizationLevel === 'string' ? args.optimizationLevel : undefined
-              ),
-            }],
-          };
+      try {
+        switch (name) {
+          case 'optimize_code':
+            this.validateStringParam(args?.code, 'code');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: await this.optimizeCode(
+                    args.code,
+                    (args.optimizationLevel as OptimizationLevel) ?? 'ReleaseSafe'
+                  ),
+                },
+              ],
+            };
 
-        case 'estimate_compute_units':
-          if (typeof args?.code !== 'string') {
-            throw new McpError(ErrorCode.InvalidParams, 'Code parameter must be a string');
-          }
-          return {
-            content: [{
-              type: 'text',
-              text: await this.estimateComputeUnits(args.code),
-            }],
-          };
+          case 'estimate_compute_units':
+            this.validateStringParam(args?.code, 'code');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: await this.estimateComputeUnits(args.code),
+                },
+              ],
+            };
 
-        case 'generate_code':
-          if (typeof args?.prompt !== 'string') {
-            throw new McpError(ErrorCode.InvalidParams, 'Prompt parameter must be a string');
-          }
-          return {
-            content: [{
-              type: 'text',
-              text: await this.generateCode(
-                args.prompt,
-                typeof args.context === 'string' ? args.context : undefined
-              ),
-            }],
-          };
+          case 'generate_code':
+            this.validateStringParam(args?.prompt, 'prompt');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: await this.generateCode(args.prompt, args.context as string | undefined),
+                },
+              ],
+            };
 
-        case 'get_recommendations':
-          if (typeof args?.code !== 'string') {
-            throw new McpError(ErrorCode.InvalidParams, 'Code parameter must be a string');
-          }
-          return {
-            content: [{
-              type: 'text',
-              text: await this.getRecommendations(
-                args.code,
-                typeof args.prompt === 'string' ? args.prompt : undefined
-              ),
-            }],
-          };
+          case 'get_recommendations':
+            this.validateStringParam(args?.code, 'code');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: await this.getRecommendations(args.code, args.prompt as string | undefined),
+                },
+              ],
+            };
 
-        default:
-          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+          case 'generate_build_zig':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: await this.generateBuildZig(args || {}),
+                },
+              ],
+            };
+
+          case 'analyze_build_zig':
+            this.validateStringParam(args?.buildZigContent, 'buildZigContent');
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: this.analyzeBuildZig(args.buildZigContent),
+                },
+              ],
+            };
+
+          case 'generate_build_zon':
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: this.generateBuildZon(args || {}),
+                },
+              ],
+            };
+
+          default:
+            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        }
+      } catch (error) {
+        Logger.error(`Tool execution failed for ${name}`, error as Error);
+        throw error;
       }
     });
   }
 
+  private validateStringParam(value: unknown, paramName: string): asserts value is string {
+    if (typeof value !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, `${paramName} parameter must be a string`);
+    }
+  }
+
   private async fetchZigDocs(section: 'language' | 'std'): Promise<string> {
     try {
-      // Fetch from Zig's official documentation for version 0.14.1
-      const response = await axios.get(`https://ziglang.org/documentation/0.14.1/${section === 'language' ? 'index' : 'std'}.html`);
+
+      Logger.debug(`Fetching Zig docs for section: ${section}`);
+      // Fetch from Zig's official documentation
+      const url = `https://ziglang.org/documentation/master/${section === 'language' ? 'index' : 'std'}.html`;
+      const response = await axios.get(url, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'User-Agent': 'zig-mcp-server/0.2.0',
+        },
+      });
+      Logger.debug(`Successfully fetched Zig docs for ${section}`);
       return response.data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error(`Failed to fetch Zig docs for ${section}`, error as Error);
       throw new McpError(ErrorCode.InternalError, `Failed to fetch Zig docs: ${errorMessage}`);
     }
   }
 
   private async fetchPopularRepos(): Promise<string> {
     try {
+      Logger.debug('Fetching popular Zig repositories');
       const response = await axios.get('https://api.github.com/search/repositories', {
         params: {
           q: 'language:zig',
@@ -250,31 +460,40 @@ class ZigServer {
         },
         headers: {
           Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'zig-mcp-server/0.2.0',
           ...(process.env.GITHUB_TOKEN && {
             Authorization: `token ${process.env.GITHUB_TOKEN}`,
           }),
         },
+        timeout: 10000, // 10 second timeout
       });
 
-      const repos = response.data.items.map((repo: any) => ({
+      const repos: GitHubRepo[] = response.data.items.map((repo: any) => ({
         name: repo.full_name,
-        description: repo.description,
+        description: repo.description || 'No description available',
         stars: repo.stargazers_count,
         url: repo.html_url,
       }));
 
+      Logger.debug(`Successfully fetched ${repos.length} popular repositories`);
       return JSON.stringify(repos, null, 2);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error('Failed to fetch popular repositories', error as Error);
       throw new McpError(ErrorCode.InternalError, `Failed to fetch popular repos: ${errorMessage}`);
     }
   }
 
-  private async optimizeCode(code: string, level: string = 'ReleaseSafe'): Promise<string> {
+  private async optimizeCode(
+    code: string,
+    level: OptimizationLevel = 'ReleaseSafe'
+  ): Promise<string> {
+    Logger.debug(`Optimizing code for level: ${level}`);
+
     // Analyze code for optimization opportunities
-    const optimizations = [];
-    
-    // Memory and allocation optimizations
+    const optimizations: string[] = [];
+
+    // Check for common patterns that can be optimized
     if (code.includes('std.ArrayList')) {
       optimizations.push('Consider pre-allocating ArrayList capacity if size is known');
       optimizations.push('Use ArrayListUnmanaged for better cache locality and reduced indirection');
@@ -283,7 +502,13 @@ class ZigServer {
       optimizations.push('Consider using std.fmt.bufPrint for stack allocation when possible');
     }
     if (code.match(/while\s*\(true\)/)) {
-      optimizations.push('Consider using continue/break instead of while(true)');
+      optimizations.push('Consider using labeled breaks instead of while(true)');
+    }
+    if (code.includes('@intCast') && !code.includes('try')) {
+      optimizations.push('Use safe integer casting: try std.math.cast() instead of @intCast');
+    }
+    if (code.match(/for\s*\([^)]*\)\s*\{[^}]*std\.fmt\.print/)) {
+      optimizations.push('Avoid I/O operations in hot loops for better performance');
     }
     
     // SIMD and vectorization opportunities
@@ -328,83 +553,100 @@ class ZigServer {
     // Build mode specific optimizations
     const buildModeOpts = {
       Debug: [
-        'Enable debug info with -fdebug-info',
-        'Use -fsanitize=address for memory debugging',
-        'Consider --verbose-llvm-ir for LLVM optimization inspection',
+        'Debug symbols enabled',
+        'Runtime safety checks enabled',
+        'No optimizations - fastest compile time',
       ],
       ReleaseSafe: [
-        'Runtime safety checks enabled (-OReleaseSafe)',
-        'LLVM -O2 optimizations enabled',
-        'Use -flto for link-time optimization',
-        'Enable -mcpu=native for target-specific optimizations',
+        'Runtime safety checks enabled',
+        'Optimizations enabled',
+        'Good balance of safety and performance',
       ],
       ReleaseFast: [
-        'Runtime safety checks disabled (-OReleaseFast)',
-        'Maximum LLVM -O3 optimizations',
-        'Use -fstrip for smaller binaries',
-        'Enable -march=native for maximum target optimization',
-        'Consider -funroll-loops for loop-heavy code',
-        'Use -fno-stack-check for maximum performance',
+        'Runtime safety checks disabled',
+        'Maximum performance optimizations',
+        'Consider adding debug assertions for critical paths',
+        'Use @setRuntimeSafety(true) for critical sections if needed',
       ],
       ReleaseSmall: [
-        'Size optimizations enabled (-OReleaseSmall)',
-        'LLVM -Os optimization for size',
-        'Use -fstrip to remove debug symbols',
-        'Enable -flto for dead code elimination',
-        'Consider -ffunction-sections -fdata-sections for better linking',
-        'Use @setRuntimeSafety(false) in hot paths',
+        'Size optimizations enabled',
+        'Consider removing debug information',
+        'Minimize template instantiations',
+        'Use packed structs to reduce memory footprint',
       ],
-    };
+    } as const;
 
-    const modeSpecificOpts = buildModeOpts[level as keyof typeof buildModeOpts] || buildModeOpts.ReleaseSafe;
+    const modeSpecificOpts = buildModeOpts[level];
 
     return `
-Optimization Analysis for ${level}:
+# Optimization Analysis for ${level}
 
-General Code Optimizations:
-${optimizations.map(opt => `- ${opt}`).join('\n')}
+## General Optimizations:
+${optimizations.length > 0 ? optimizations.map(opt => `- ${opt}`).join('\n') : '- No immediate optimization opportunities detected'}
 
-Build Configuration for ${level}:
+## Build Mode Specific:
 ${modeSpecificOpts.map(opt => `- ${opt}`).join('\n')}
 
-Advanced Build Tips:
-- Use 'zig build-exe -O${level}' for optimized builds
-- Set target with '--target x86_64-linux-gnu' for cross-compilation
-- Add '-mcpu=native' for CPU-specific optimizations
-- Use '-flto' for link-time optimization (longer compile time, better performance)
-- Enable '-fstrip' to reduce binary size in release builds
+## Modern Zig Patterns to Consider:
+- Use comptime for compile-time computations
+- Leverage Zig's zero-cost abstractions
+- Consider using packed structs for memory efficiency
+- Use defer for automatic cleanup
+- Implement proper error handling with error unions
 
-Compiler Flags for Performance:
-- '-funroll-loops': Unroll loops for better performance
-- '-fvectorize': Enable auto-vectorization
-- '-march=native': Use all CPU features available
-- '-mtune=native': Optimize for specific CPU model
-- '-fomit-frame-pointer': Remove frame pointer for register allocation
-
-Optimized Code:
-${code}
+## Optimized Code Suggestions:
+\`\`\`zig
+${this.generateOptimizedCodeSuggestions(code, level)}
+\`\`\`
     `.trim();
   }
 
+  private generateOptimizedCodeSuggestions(code: string, level: OptimizationLevel): string {
+    let optimizedCode = code;
+
+    // Apply common optimizations
+    if (optimizedCode.includes('std.ArrayList') && !optimizedCode.includes('initCapacity')) {
+      optimizedCode = optimizedCode.replace(
+        /std\.ArrayList\([^)]+\)\.init\([^)]+\)/,
+        'std.ArrayList($1).initCapacity(allocator, expected_capacity)'
+      );
+    }
+
+    // Add safety annotations for ReleaseFast
+    if (level === 'ReleaseFast' && !optimizedCode.includes('@setRuntimeSafety')) {
+      optimizedCode = `// Consider adding runtime safety for critical sections:\n// @setRuntimeSafety(true);\n\n${optimizedCode}`;
+    }
+
+    return optimizedCode;
+  }
+
   private async estimateComputeUnits(code: string): Promise<string> {
-    // Analyze code for computational complexity
-    const analysis = {
-      memoryUsage: this.analyzeMemoryUsage(code),
-      timeComplexity: this.analyzeTimeComplexity(code),
-      allocations: this.analyzeAllocations(code),
+    Logger.debug('Estimating compute units for code');
+
+    // Analyze code for computational complexity using new utility classes
+    const analysis: CodeAnalysisResult = {
+      memoryUsage: ZigCodeAnalyzer.analyzeMemoryUsage(code),
+      timeComplexity: ZigCodeAnalyzer.analyzeTimeComplexity(code),
+      allocations: ZigCodeAnalyzer.analyzeAllocations(code),
     };
 
     return `
-Compute Units Estimation:
+# Compute Units Estimation
 
-Memory Usage:
+## Memory Usage:
 ${analysis.memoryUsage}
 
-Time Complexity:
+## Time Complexity:
 ${analysis.timeComplexity}
 
-Allocation Analysis:
+## Allocation Analysis:
 ${analysis.allocations}
+
+## Recommendations:
+- Consider using arena allocators for batch allocations
+- Profile memory usage with --enable-logging
+- Use comptime evaluation to reduce runtime overhead
+- Consider memory pool allocation for frequent allocations
     `.trim();
   }
 
@@ -488,16 +730,14 @@ ${recommendations.length > 0 ? '\nRecommendations:\n' + recommendations.map(r =>
     const parallelizable = (code.match(patterns.parallelizable) || []).length;
 
     let complexity = 'O(1)';
-    if (nestedLoops > 0) complexity = 'O(n²)';
-    else if (loops > 0) complexity = 'O(n)';
-    if (recursion > 0) complexity += ' with recursive calls';
-    
-    const optimizationNotes = [];
-    if (vectorOps > 0) optimizationNotes.push('SIMD vectorization detected');
-    if (builtinMath > 0) optimizationNotes.push('Optimized builtin math functions used');
-    if (memoryOps > 0) optimizationNotes.push('Optimized memory operations detected');
-    if (simdReductions > 0) optimizationNotes.push('Vector reductions for parallel computation');
-    if (parallelizable > 0) optimizationNotes.push('Potential for parallel execution');
+    if (nestedLoops > 0) {
+      complexity = 'O(n²)';
+    } else if (loops > 0) {
+      complexity = 'O(n)';
+    }
+    if (recursion > 0) {
+      complexity += ' with recursive calls';
+    }
 
     return `
 - Estimated Complexity: ${complexity}
@@ -571,228 +811,227 @@ ${allocatorRecommendations.length > 0 ? '\nAllocator Recommendations:\n' + alloc
     `.trim();
   }
 
-  private determineAllocStrategy(arenaCount: number, fixedBufCount: number, gpaCount: number = 0, pageCount: number = 0): string {
-    const allocTypes = [];
-    if (arenaCount > 0) allocTypes.push('Arena');
-    if (fixedBufCount > 0) allocTypes.push('FixedBuffer');
-    if (gpaCount > 0) allocTypes.push('GeneralPurpose');
-    if (pageCount > 0) allocTypes.push('Page');
-
-    if (allocTypes.length === 0) return 'Default allocator usage';
-    if (allocTypes.length === 1) return `${allocTypes[0]}-based allocation`;
-    return `Mixed allocation strategy (${allocTypes.join(', ')})`;
+  private determineAllocStrategy(arenaCount: number, fixedBufCount: number): string {
+    if (arenaCount > 0 && fixedBufCount > 0) {
+      return 'Mixed allocation strategy';
+    }
+    if (arenaCount > 0) {
+      return 'Arena-based allocation';
+    }
+    if (fixedBufCount > 0) {
+      return 'Fixed buffer allocation';
+    }
+    return 'Default allocator usage';
   }
 
   private async generateCode(prompt: string, context?: string): Promise<string> {
-    // Parse requirements and generate appropriate code
-    const requirements = this.parseRequirements(prompt, context);
-    const code = this.generateZigCode(requirements);
-    
+    Logger.debug(`Generating code for prompt: ${prompt}`);
+
+    // Parse requirements and generate appropriate code using new utility classes
+    const requirements = ZigCodeGenerator.parseRequirements(prompt, context);
+    const code = ZigCodeGenerator.generateZigCode(requirements);
+
     return `
-Generated Zig Code:
+# Generated Zig Code
 
 ${code}
 
-Notes:
-- Code follows Zig style guide
-- Includes error handling
-- Uses comptime when beneficial
-- Includes basic tests
-    `.trim();
-  }
+## Generation Notes:
+- Code follows modern Zig patterns and style guide
+- Includes comprehensive error handling where appropriate
+- Uses comptime optimizations when beneficial
+- Includes basic tests and documentation
+- Follows zero-cost abstraction principles
 
-  private parseRequirements(prompt: string, context?: string): any {
-    // Extract key requirements from the prompt
-    type RequirementFlags = 'errorHandling' | 'testing' | 'performance';
-    
-    interface Requirements {
-      features: Set<string>;
-      [key: string]: Set<string> | boolean;
-    }
-
-    const requirements: Requirements = {
-      features: new Set<string>(),
-      errorHandling: false,
-      testing: false,
-      performance: false,
-    };
-
-    const flagKeys: RequirementFlags[] = ['errorHandling', 'testing', 'performance'];
-
-    const keywords = {
-      features: ['create', 'implement', 'build', 'function', 'struct', 'type'],
-      errorHandling: ['error', 'handle', 'catch', 'try'],
-      testing: ['test', 'verify', 'check'],
-      performance: ['fast', 'optimize', 'performance', 'efficient'],
-    };
-
-    for (const [category, words] of Object.entries(keywords)) {
-      if (words.some(word => prompt.toLowerCase().includes(word))) {
-        if (category === 'features') {
-          words.forEach(word => {
-            if (prompt.toLowerCase().includes(word)) {
-              requirements.features.add(word);
-            }
-          });
-        } else {
-          if (flagKeys.includes(category as RequirementFlags)) {
-            requirements[category] = true;
-          }
-        }
-      }
-    }
-
-    return requirements;
-  }
-
-  private generateZigCode(requirements: any): string {
-    const hasFeature = (feature: string) => requirements.features.has(feature);
-    
-    let code = '//! Generated Zig code\n\n';
-    
-    // Add standard imports
-    code += 'const std = @import("std");\n\n';
-    
-    // Add error set if needed
-    if (requirements.errorHandling) {
-      code += 'const Error = error{\n    InvalidInput,\n    OutOfMemory,\n};\n\n';
-    }
-
-    // Generate main functionality
-    if (hasFeature('struct')) {
-      code += this.generateStruct(requirements);
-    } else if (hasFeature('function')) {
-      code += this.generateFunction(requirements);
-    }
-
-    // Add tests if requested
-    if (requirements.testing) {
-      code += '\n' + this.generateTests(requirements);
-    }
-
-    return code;
-  }
-
-  private generateStruct(requirements: any): string {
-    return `
-pub const MyStruct = struct {
-    data: []const u8,
-    allocator: std.mem.Allocator,
-
-    pub fn init(allocator: std.mem.Allocator) MyStruct {
-        return .{
-            .data = &[_]u8{},
-            .allocator = allocator,
-        };
-    }
-
-    pub fn deinit(self: *MyStruct) void {
-        // Cleanup allocated resources
-        _ = self; // suppress unused variable warning
-    }
-    
-    pub fn getData(self: *const MyStruct) []const u8 {
-        return self.data;
-    }
-};
-    `.trim();
-  }
-
-  private generateFunction(requirements: any): string {
-    const fnHeader = requirements.errorHandling
-      ? 'pub fn process(input: []const u8) Error!void'
-      : 'pub fn process(input: []const u8) void';
-
-    return `
-${fnHeader} {
-    ${requirements.errorHandling ? 'if (input.len == 0) return Error.InvalidInput;' : ''}
-    // Function implementation
-    _ = input; // suppress unused parameter warning if not used
-}
-    `.trim();
-  }
-
-  private generateTests(requirements: any): string {
-    return `
-test "basic functionality" {
-    const testing = std.testing;
-    ${requirements.errorHandling ? 'try testing.expectError(Error.InvalidInput, process(""));' : ''}
-    // Add more test cases
-}
+## Next Steps:
+1. Review and customize the generated code for your specific needs
+2. Add comprehensive tests
+3. Consider performance implications for your use case
+4. Add proper documentation comments
     `.trim();
   }
 
   private async getRecommendations(code: string, prompt?: string): Promise<string> {
+    Logger.debug(`Analyzing code for recommendations${prompt ? ` with focus: ${prompt}` : ''}`);
+
+    // Comprehensive analysis using all enhanced analysis methods
     const analysis = {
-      style: this.analyzeCodeStyle(code),
-      patterns: this.analyzePatterns(code),
-      safety: this.analyzeSafety(code),
-      performance: this.analyzePerformance(code),
+      style: ZigStyleChecker.analyzeCodeStyle(code),
+      patterns: ZigStyleChecker.analyzePatterns(code),
+      safety: ZigStyleChecker.analyzeSafety(code),
+      performance: ZigStyleChecker.analyzePerformance(code),
+      concurrency: ZigStyleChecker.analyzeConcurrency(code),
+      metaprogramming: ZigStyleChecker.analyzeMetaprogramming(code),
+      testing: ZigStyleChecker.analyzeTesting(code),
+      buildSystem: ZigStyleChecker.analyzeBuildSystem(code),
+      interop: ZigStyleChecker.analyzeInterop(code),
+      metrics: ZigStyleChecker.analyzeCodeMetrics(code),
+      modernPatterns: ZigStyleChecker.analyzeModernZigPatterns(code),
     };
 
     let recommendations = `
-Code Analysis and Recommendations:
+# 🔍 Comprehensive Zig Code Analysis
 
-Style and Conventions:
+## 📐 Style and Conventions
 ${analysis.style}
 
-Design Patterns:
+## 🏗️ Design Patterns & Architecture
 ${analysis.patterns}
 
-Safety Considerations:
+## 🛡️ Safety & Security Analysis
 ${analysis.safety}
 
-Performance Insights:
+## ⚡ Performance Analysis
 ${analysis.performance}
+
+## 🧵 Concurrency & Threading
+${analysis.concurrency}
+
+## 🎨 Metaprogramming & Compile-time
+${analysis.metaprogramming}
+
+## 🧪 Testing & Quality Assurance
+${analysis.testing}
+
+## 🔧 Build System Integration
+${analysis.buildSystem}
+
+## 🔗 Interoperability
+${analysis.interop}
+
+## 📊 Code Metrics & Maintainability
+${analysis.metrics}
+
+## ✨ Modern Zig Patterns (0.12+)
+${analysis.modernPatterns}
+
+## 🎯 Best Practices Summary
+- **Memory Management**: Use RAII patterns with defer, prefer arena allocators for batch operations
+- **Error Handling**: Implement comprehensive error unions and proper propagation
+- **Performance**: Leverage comptime evaluation, consider SIMD for data-parallel operations
+- **Safety**: Enable runtime safety in debug builds, use explicit initialization
+- **Testing**: Maintain high test coverage with property-based testing where applicable
+- **Documentation**: Use comprehensive doc comments (//!) for modules and (///) for functions
+- **Modern Patterns**: Adopt Zig 0.12+ syntax and leverage new standard library features
+- **Build System**: Use build.zig.zon for dependency management, support cross-compilation
+- **Code Quality**: Maintain low cyclomatic complexity, follow single responsibility principle
+- **Concurrency**: Use proper synchronization primitives, consider async/await for I/O bound tasks
+
+## 🚀 Advanced Optimization Recommendations
+- **Compile-time Optimization**: Move more computations to comptime where possible
+- **Memory Layout**: Use packed structs for memory-critical applications
+- **SIMD Utilization**: Consider vectorization for mathematical operations
+- **Profile-Guided Optimization**: Use zig build -Doptimize=ReleaseFast -Dcpu=native
+- **Static Analysis**: Integrate additional linting tools in your build pipeline
+- **Fuzzing**: Implement fuzz testing for input validation functions
+- **Benchmarking**: Add performance regression tests for critical paths
     `.trim();
 
+    // Add context-specific recommendations based on the prompt
     if (prompt) {
-      recommendations += `\n\nSpecific Recommendations for "${prompt}":\n`;
+      recommendations += `\n\n## 🎯 Specific Recommendations for "${prompt}":\n`;
       recommendations += this.getSpecificRecommendations(code, prompt);
+      
+      // Add advanced context-specific analysis
+      recommendations += this.getAdvancedContextRecommendations(code, prompt);
     }
 
     return recommendations;
   }
 
-  private analyzeCodeStyle(code: string): string {
-    const issues = [];
+  private getAdvancedContextRecommendations(code: string, prompt: string): string {
+    const advanced: string[] = [];
+    const contextLower = prompt.toLowerCase();
 
-    // Check naming conventions
-    if (code.match(/[A-Z][a-z]+(?:[A-Z][a-z]+)*\s*=/)) {
-      issues.push('- Use snake_case for variable names instead of PascalCase');
-    }
-    if (code.match(/[a-z]+[A-Z][a-z]+\s*=/)) {
-      issues.push('- Use snake_case for variable names instead of camelCase');
-    }
-
-    // Check formatting
-    if (code.match(/\s+$/m)) {
-      issues.push('- Remove trailing whitespace');
-    }
-    if (code.match(/\t/)) {
-      issues.push('- Use spaces instead of tabs for indentation');
+    // === PERFORMANCE CONTEXT ===
+    if (contextLower.includes('performance') || contextLower.includes('optimization')) {
+      advanced.push('\n### 🔥 Advanced Performance Strategies:');
+      advanced.push('- **Hot Path Analysis**: Profile with perf to identify bottlenecks');
+      advanced.push('- **Memory Allocator Tuning**: Consider custom allocators for specific workloads');
+      advanced.push('- **Cache Optimization**: Align data structures to cache line boundaries');
+      advanced.push('- **Branch Prediction**: Use @branchHint for predictable branches');
+      advanced.push('- **Inlining Strategy**: Profile inline vs call overhead for hot functions');
+      advanced.push('- **SIMD Exploitation**: Use @Vector for parallel arithmetic operations');
+      advanced.push('- **Compile-time Constants**: Move runtime calculations to comptime where possible');
     }
 
-    // Check documentation
-    if (!code.match(/\/\/[!/] /)) {
-      issues.push('- Add documentation comments for public declarations');
+    // === SAFETY CONTEXT ===
+    if (contextLower.includes('safety') || contextLower.includes('security')) {
+      advanced.push('\n### 🛡️ Advanced Safety & Security:');
+      advanced.push('- **Memory Safety**: Enable AddressSanitizer in debug builds');
+      advanced.push('- **Integer Safety**: Use @setRuntimeSafety(true) for critical calculations');
+      advanced.push('- **Crypto Safety**: Use constant-time operations for sensitive data');
+      advanced.push('- **Input Validation**: Implement comprehensive bounds checking');
+      advanced.push('- **Error Recovery**: Design graceful degradation for error conditions');
+      advanced.push('- **Resource Limits**: Implement timeouts and resource quotas');
+      advanced.push('- **Fuzzing Strategy**: Generate test cases for edge conditions');
     }
 
-    return issues.length > 0 ? issues.join('\n') : '- Code follows Zig style guidelines';
+    // === MAINTAINABILITY CONTEXT ===
+    if (contextLower.includes('maintainability') || contextLower.includes('refactor')) {
+      advanced.push('\n### 🔧 Advanced Maintainability:');
+      advanced.push('- **Module Design**: Follow single responsibility principle strictly');
+      advanced.push('- **API Design**: Minimize public surface area, use const parameters');
+      advanced.push('- **Type Safety**: Leverage Zig\'s type system for compile-time guarantees');
+      advanced.push('- **Documentation**: Use doctests for executable examples');
+      advanced.push('- **Versioning**: Plan for API evolution with semantic versioning');
+      advanced.push('- **Testing Strategy**: Implement property-based testing for complex functions');
+      advanced.push('- **Code Metrics**: Monitor complexity trends over time');
+    }
+
+    // === CONCURRENCY CONTEXT ===
+    if (contextLower.includes('concurrent') || contextLower.includes('thread') || contextLower.includes('async')) {
+      advanced.push('\n### 🧵 Advanced Concurrency Patterns:');
+      advanced.push('- **Lock-free Design**: Use atomic operations where possible');
+      advanced.push('- **Work Stealing**: Implement efficient task distribution');
+      advanced.push('- **Memory Ordering**: Understand acquire/release semantics');
+      advanced.push('- **Async Patterns**: Design for cooperative multitasking');
+      advanced.push('- **Resource Pooling**: Minimize allocation in concurrent contexts');
+      advanced.push('- **Deadlock Prevention**: Establish lock ordering conventions');
+      advanced.push('- **Performance Monitoring**: Track contention and utilization metrics');
+    }
+
+    // === ARCHITECTURE CONTEXT ===
+    if (contextLower.includes('architecture') || contextLower.includes('design')) {
+      advanced.push('\n### 🏗️ Advanced Architectural Patterns:');
+      advanced.push('- **Dependency Injection**: Use comptime-based DI for testability');
+      advanced.push('- **Event Sourcing**: Consider immutable event logs for state management');
+      advanced.push('- **Plugin Architecture**: Design for extensibility with comptime interfaces');
+      advanced.push('- **Error Boundaries**: Implement fault isolation strategies');
+      advanced.push('- **Configuration Management**: Use comptime for compile-time configuration');
+      advanced.push('- **Observability**: Build in logging, metrics, and tracing from the start');
+      advanced.push('- **Backward Compatibility**: Plan for API evolution strategies');
+    }
+
+    return advanced.join('\n');
   }
 
-  private analyzePatterns(code: string): string {
-    const patterns = [];
+  private getSpecificRecommendations(code: string, prompt: string): string {
+    const recommendations: string[] = [];
 
-    // Check for common patterns
-    if (code.includes('std.ArrayList') && !code.includes('deinit')) {
-      patterns.push('- Consider implementing deinit for proper cleanup');
+    // Add context-specific recommendations based on the prompt
+    if (prompt.toLowerCase().includes('performance')) {
+      recommendations.push('- Use comptime when possible to move computations to compile time');
+      recommendations.push('- Consider using packed structs for memory optimization');
+      recommendations.push('- Implement custom allocators for specific use cases');
+      recommendations.push('- Profile with `zig build -Doptimize=ReleaseFast` for production');
+      recommendations.push('- Use SIMD operations for data-parallel computations');
     }
-    if (code.match(/while\s*\(true\)/)) {
-      patterns.push('- Consider using labeled breaks for clearer loop control');
+
+    if (prompt.toLowerCase().includes('safety')) {
+      recommendations.push('- Add bounds checking for array access');
+      recommendations.push('- Use explicit error handling with try/catch');
+      recommendations.push('- Implement proper resource cleanup with defer');
+      recommendations.push('- Avoid undefined behavior with proper initialization');
+      recommendations.push('- Use runtime safety checks in debug builds');
     }
-    if (code.includes('std.fmt.allocPrint')) {
-      patterns.push('- Consider using formatters or bufPrint when possible');
+
+    if (prompt.toLowerCase().includes('maintainability')) {
+      recommendations.push('- Add comprehensive documentation with //! and ///');
+      recommendations.push('- Break down complex functions into smaller, focused units');
+      recommendations.push('- Use meaningful variable and function names');
+      recommendations.push('- Implement proper module structure');
+      recommendations.push('- Add comprehensive test coverage');
     }
     
     // Check for outdated Zig syntax (pre-0.11)
@@ -803,200 +1042,228 @@ ${analysis.performance}
       patterns.push('- Update @floatCast syntax: use @floatCast(value) instead of @floatCast(Type, value)');
     }
 
-    return patterns.length > 0 ? patterns.join('\n') : '- No significant pattern issues detected';
-  }
-
-  private analyzeSafety(code: string): string {
-    const safety = [];
-
-    // Check error handling
-    if (code.includes('!void') && !code.includes('try')) {
-      safety.push('- Add error handling for functions that can fail');
-    }
-    if (code.includes('undefined')) {
-      safety.push('- Initialize variables explicitly instead of using undefined');
-    }
-    if (code.includes('@ptrCast')) {
-      safety.push('- Review pointer casts for safety implications');
-    }
-
-    return safety.length > 0 ? safety.join('\n') : '- Code appears to follow safe practices';
-  }
-
-  private analyzePerformance(code: string): string {
-    const performance = [];
-
-    // Memory allocation patterns
-    if (code.includes('std.ArrayList') && !code.match(/initCapacity/)) {
-      performance.push('- Consider pre-allocating ArrayList capacity with initCapacity()');
-    }
-    if (code.includes('std.ArrayList') && !code.includes('ArrayListUnmanaged')) {
-      performance.push('- Consider ArrayListUnmanaged for reduced pointer indirection');
-    }
-    
-    // Arithmetic and computation optimizations
-    if (code.match(/\+\s*\d+\s*\+/)) {
-      performance.push('- Use comptime for constant expressions');
-    }
-    if (code.includes('std.crypto')) {
-      performance.push('- Consider using batch processing for crypto operations');
-    }
-    if (code.match(/\bmul\b|\bdiv\b|\bmod\b/)) {
-      performance.push('- Consider using bit operations for power-of-2 operations');
-    }
-    
-    // SIMD and vectorization opportunities
-    if (code.includes('[]f32') || code.includes('[]f64') || code.includes('[]i32')) {
-      performance.push('- Consider @Vector for SIMD operations on numeric arrays');
-      performance.push('- Use @reduce() for vector reduction operations');
-    }
-    if (code.match(/for\s*\([^)]*\)\s*\|[^|]*\|\s*{[^}]*[+\-*/]/)) {
-      performance.push('- Loop with arithmetic operations can benefit from vectorization');
-    }
-    
-    // Memory layout and access patterns
-    if (code.includes('struct {')) {
-      performance.push('- Order struct fields by alignment (largest first) for optimal packing');
-      performance.push('- Consider packed struct for memory-constrained scenarios');
-    }
-    if (code.includes('[][]')) {
-      performance.push('- Consider MultiArrayList for better cache locality (AoS → SoA)');
-    }
-    
-    // Function call optimizations
-    if (code.match(/fn\s+\w+[^{]*{[^}]{1,100}}/)) {
-      performance.push('- Consider @inline for small, frequently-called functions');
-    }
-    if (code.includes('@call')) {
-      performance.push('- Use @call(.always_inline, ...) for guaranteed inlining');
-    }
-    
-    // Builtin functions for performance
-    if (code.includes('std.math.sqrt')) {
-      performance.push('- Use @sqrt() builtin instead of std.math.sqrt for better performance');
-    }
-    if (code.includes('std.math.sin') || code.includes('std.math.cos')) {
-      performance.push('- Use @sin()/@cos() builtins for better performance');
-    }
-    if (code.includes('std.mem.copy') || code.includes('std.mem.set')) {
-      performance.push('- Use @memcpy()/@memset() builtins for optimized memory operations');
-    }
-    
-    // Modern Zig collections and patterns
-    if (code.includes('std.HashMap') && !code.includes('ArrayHashMap')) {
-      performance.push('- Consider ArrayHashMap for better cache locality with small datasets');
-    }
-    if (code.includes('std.BoundedArray')) {
-      performance.push('- BoundedArray provides stack allocation with dynamic sizing');
-    }
-    
-    // Compile-time optimizations
-    if (code.match(/const\s+\w+\s*=.*std\.(hash|crypto)/)) {
-      performance.push('- Move hash/crypto constants to comptime evaluation');
-    }
-    if (code.includes('switch (')) {
-      performance.push('- Ensure switch cases are comptime-known when possible');
-    }
-    
-    // Platform-specific optimizations
-    if (code.includes('std.Thread') || code.includes('std.atomic')) {
-      performance.push('- Consider target CPU cache line size for atomic operations');
-      performance.push('- Use std.atomic.Ordering for fine-grained memory ordering control');
-    }
-
-    return performance.length > 0 ? performance.join('\n') : '- No immediate performance concerns detected';
-  }
-
-  private getSpecificRecommendations(code: string, prompt: string): string {
-    const recommendations = [];
-
-    // Add context-specific recommendations based on the prompt
-    if (prompt.toLowerCase().includes('performance')) {
-      recommendations.push('- Use comptime when possible for compile-time evaluation');
-      recommendations.push('- Consider using packed structs for memory optimization');
-      recommendations.push('- Implement custom allocators for specific use cases');
-      recommendations.push('- Use @inline for small hot functions');
-      recommendations.push('- Consider using @Vector for SIMD operations');
-      recommendations.push('- Use @prefetch() to hint cache warming for pointer access');
-      recommendations.push('- Leverage @optimizeFor(.ReleaseFast) for critical functions');
-      recommendations.push('- Use @setRuntimeSafety(false) in performance-critical paths');
-      recommendations.push('- Consider ArrayListUnmanaged for reduced indirection overhead');
-      recommendations.push('- Use MultiArrayList for better cache locality (Structure of Arrays)');
-      recommendations.push('- Leverage @reduce() for efficient vector reductions');
-      recommendations.push('- Use builtin functions (@sqrt, @sin, @cos) instead of std.math');
-      recommendations.push('- Consider @embedFile() for compile-time resource inclusion');
-      recommendations.push('- Use @bitCast() instead of @ptrCast() when possible for better optimization');
-      recommendations.push('- Leverage @splat() for vector initialization');
-    }
-    
-    if (prompt.toLowerCase().includes('build') || prompt.toLowerCase().includes('optimization')) {
-      recommendations.push('- Use -OReleaseFast for maximum runtime performance');
-      recommendations.push('- Enable -mcpu=native for target-specific CPU optimizations');
-      recommendations.push('- Use -flto for link-time optimization and dead code elimination');
-      recommendations.push('- Add -march=native to utilize all available CPU features');
-      recommendations.push('- Use -fstrip to reduce binary size in production builds');
-      recommendations.push('- Enable -funroll-loops for loop-heavy computations');
-      recommendations.push('- Use -fomit-frame-pointer for additional register availability');
-      recommendations.push('- Consider -mtune=native for CPU-specific tuning');
-      recommendations.push('- Use --verbose-llvm-ir to inspect LLVM optimization passes');
-      recommendations.push('- Enable -ffunction-sections -fdata-sections for better dead code elimination');
-      recommendations.push('- Use -fsanitize=address in debug builds for memory error detection');
-      recommendations.push('- Consider cross-compilation with --target for specific architectures');
-      recommendations.push('- Use zig build-exe -OReleaseSmall for size-optimized builds');
-      recommendations.push('- Leverage -femit-llvm-ir to analyze generated LLVM code');
-    }
-    
     if (prompt.toLowerCase().includes('memory')) {
-      recommendations.push('- Use ArenaAllocator for batch allocations with single cleanup');
-      recommendations.push('- Consider FixedBufferAllocator for stack-based allocation');
-      recommendations.push('- Use std.heap.page_allocator for large, long-lived allocations');
-      recommendations.push('- Implement GeneralPurposeAllocator for debugging memory issues');
-      recommendations.push('- Use BoundedArray for stack-allocated dynamic arrays');
-      recommendations.push('- Consider @alignOf() and @sizeOf() for memory layout optimization');
-      recommendations.push('- Use @memcpy() and @memset() builtins for optimized memory operations');
-      recommendations.push('- Leverage packed structs for memory-constrained environments');
-      recommendations.push('- Use std.mem.Allocator.alignedAlloc() for SIMD-aligned allocations');
-    }
-    
-    if (prompt.toLowerCase().includes('simd') || prompt.toLowerCase().includes('vector')) {
-      recommendations.push('- Use @Vector(len, T) for explicit SIMD programming');
-      recommendations.push('- Leverage @splat() to broadcast scalars to vectors');
-      recommendations.push('- Use @reduce() for vector reductions (sum, min, max, etc.)');
-      recommendations.push('- Consider @shuffle() for vector lane rearrangement');
-      recommendations.push('- Use @select() for conditional vector operations');
-      recommendations.push('- Ensure data alignment with @alignOf() for optimal SIMD performance');
-      recommendations.push('- Use vector length that matches target CPU SIMD width');
-      recommendations.push('- Consider loop unrolling for better vectorization opportunities');
+      recommendations.push('- Consider arena allocators for batch allocations');
+      recommendations.push('- Use fixed buffer allocators for known-size data');
+      recommendations.push('- Implement proper deinitialization patterns');
+      recommendations.push('- Profile memory usage in production scenarios');
     }
 
-    if (prompt.toLowerCase().includes('safety')) {
-      recommendations.push('- Add bounds checking for array access');
-      recommendations.push('- Use explicit error handling with try/catch');
-      recommendations.push('- Implement proper resource cleanup with defer');
-      recommendations.push('- Use const where possible to prevent mutations');
-      recommendations.push('- Avoid undefined behavior with proper initialization');
-      recommendations.push('- Use @setRuntimeSafety(true) in debug builds');
-      recommendations.push('- Leverage optional types (?T) instead of null pointers');
-      recommendations.push('- Use tagged unions for type-safe variant types');
-    }
-    
-    if (prompt.toLowerCase().includes('maintainability')) {
-      recommendations.push('- Add comprehensive documentation');
-      recommendations.push('- Break down complex functions');
-      recommendations.push('- Use meaningful variable names');
-      recommendations.push('- Organize code into modules and namespaces');
-      recommendations.push('- Write unit tests for public functions');
-      recommendations.push('- Use comptime for compile-time validation');
-      recommendations.push('- Leverage Zig\'s type system for self-documenting code');
-    }
-
-    return recommendations.join('\n');
+    return recommendations.length > 0
+      ? recommendations.join('\n')
+      : '- No specific recommendations for this context';
   }
 
-  async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('Zig MCP server running on stdio');
+  private async generateBuildZig(args: Record<string, any>): Promise<string> {
+    Logger.debug('Generating build.zig file');
+
+    const config: Partial<ZigBuildConfig> = {
+      zigVersion: args.zigVersion || '0.12.0',
+      buildMode: args.optimizationLevel || 'ReleaseSafe',
+      dependencies: {},
+      buildSteps: [],
+    };
+
+    // Add dependencies if provided
+    if (Array.isArray(args.dependencies)) {
+      for (const dep of args.dependencies) {
+        config.dependencies![dep] = `dependency("${dep}")`;
+      }
+    }
+
+    const buildZigContent = ZigBuildSystemHelper.generateBuildZig(config);
+
+    return `
+# Generated build.zig
+
+\`\`\`zig
+${buildZigContent}
+\`\`\`
+
+## Usage Instructions:
+
+1. **Build the project:**
+   \`\`\`bash
+   zig build
+   \`\`\`
+
+2. **Run the application:**
+   \`\`\`bash
+   zig build run
+   \`\`\`
+
+3. **Run tests:**
+   \`\`\`bash
+   zig build test
+   \`\`\`
+
+4. **Build for different targets:**
+   \`\`\`bash
+   zig build -Dtarget=x86_64-windows-gnu
+   zig build -Dtarget=aarch64-linux-gnu
+   \`\`\`
+
+5. **Different optimization modes:**
+   \`\`\`bash
+   zig build -Doptimize=Debug
+   zig build -Doptimize=ReleaseFast
+   \`\`\`
+
+## Next Steps:
+- Customize the build script for your specific needs
+- Add additional build steps or dependencies as required
+- Consider using build.zig.zon for dependency management
+    `.trim();
+  }
+
+  private analyzeBuildZig(buildZigContent: string): string {
+    Logger.debug('Analyzing build.zig content');
+
+    const recommendations = ZigBuildSystemHelper.analyzeBuildZig(buildZigContent);
+
+    return `
+# Build.zig Analysis Results
+
+## Recommendations:
+${recommendations.map(rec => `- ${rec}`).join('\n')}
+
+## Modern Zig Build System Features to Consider:
+
+### 1. Dependency Management (Zig 0.11+)
+- Use build.zig.zon for managing dependencies
+- Replace manual @import() with b.dependency()
+
+### 2. Cross-compilation Support
+- Use standardTargetOptions() for flexible target selection
+- Support multiple architectures out of the box
+
+### 3. Build Options
+- Add configurable build options with b.addOptions()
+- Support feature flags and conditional compilation
+
+### 4. Testing Integration
+- Include comprehensive test steps
+- Support different test configurations
+
+### 5. Documentation Generation
+- Add documentation generation steps
+- Include examples and usage guides
+
+## Example Modernization:
+
+\`\`\`zig
+// Old pattern (deprecated)
+exe.setTarget(target);
+exe.setBuildMode(mode);
+
+// New pattern (modern)
+const exe = b.addExecutable(.{
+    .name = "my-app",
+    .root_source_file = .{ .path = "src/main.zig" },
+    .target = target,
+    .optimize = optimize,
+});
+\`\`\`
+    `.trim();
+  }
+
+  private generateBuildZon(args: Record<string, any>): string {
+    Logger.debug('Generating build.zig.zon file');
+
+    const _projectName = args.projectName || 'my-project';
+    const dependencies = Array.isArray(args.dependencies) ? args.dependencies : [];
+
+    const buildZonContent = ZigBuildSystemHelper.generateBuildZon(dependencies);
+
+    return `
+# Generated build.zig.zon
+
+\`\`\`zig
+${buildZonContent}
+\`\`\`
+
+## Dependency Management Instructions:
+
+1. **Add a new dependency:**
+   - Add the dependency to the .dependencies section
+   - Run \`zig build --fetch\` to download and validate
+
+2. **Update dependency hashes:**
+   - Zig will provide the correct hash when a mismatch is detected
+   - Copy the hash from the error message to build.zig.zon
+
+3. **Use dependencies in build.zig:**
+   \`\`\`zig
+   const my_dep = b.dependency("my_dep", .{
+       .target = target,
+       .optimize = optimize,
+   });
+   exe.linkLibrary(my_dep.artifact("my_dep"));
+   \`\`\`
+
+## Popular Zig Dependencies:
+${Object.entries(ZigBuildSystemHelper.getExampleDependencies())
+  .map(([_key, dep]) => `- **${dep.name}**: ${dep.url}`)
+  .join('\n')}
+
+## Best Practices:
+- Keep dependencies minimal and well-maintained
+- Pin to specific versions or commits for reproducible builds
+- Regularly update dependencies for security fixes
+- Document why each dependency is needed
+    `.trim();
+  }
+
+  private generateBuildExamples(): string {
+    const examples = [
+      {
+        name: 'Basic Executable',
+        description: 'Simple executable with modern build patterns',
+        config: { zigVersion: '0.12.0', buildMode: 'ReleaseSafe' as OptimizationLevel },
+      },
+      {
+        name: 'Library with Dependencies',
+        description: 'Library project with external dependencies',
+        config: {
+          zigVersion: '0.12.0',
+          buildMode: 'ReleaseSafe' as OptimizationLevel,
+          dependencies: { args: 'https://github.com/MasterQ32/zig-args' },
+        },
+      },
+      {
+        name: 'Cross-platform Application',
+        description: 'Application configured for multiple platforms',
+        config: {
+          zigVersion: '0.12.0',
+          buildMode: 'ReleaseFast' as OptimizationLevel,
+          targetTriple: 'native',
+        },
+      },
+    ];
+
+    return examples
+      .map(
+        example => `
+## ${example.name}
+${example.description}
+
+\`\`\`zig
+${ZigBuildSystemHelper.generateBuildZig(example.config)}
+\`\`\`
+`
+      )
+      .join('\n---\n');
+  }
+
+  async run(): Promise<void> {
+    try {
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      Logger.info('Zig MCP server running on stdio');
+    } catch (error) {
+      Logger.error('Failed to start server', error as Error);
+      process.exit(1);
+    }
   }
 }
 
