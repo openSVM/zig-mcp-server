@@ -1,7 +1,7 @@
 {
   "name": "zig-mcp-server",
   "version": "0.2.0",
-  "description": "zig ai 10x dev assistant - updated for Zig 0.14.1",
+  "description": "Modern Zig AI development assistant - optimized for Zig 0.14.x with comprehensive build system support",
   "private": true,
   "type": "module",
   "bin": {

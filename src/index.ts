@@ -919,7 +919,7 @@ ${analysis.interop}
 ## 📊 Code Metrics & Maintainability
 ${analysis.metrics}
 
-## ✨ Modern Zig Patterns (0.12+)
+## ✨ Modern Zig Patterns (0.14+)
 ${analysis.modernPatterns}
 
 ## 🎯 Best Practices Summary
@@ -929,7 +929,7 @@ ${analysis.modernPatterns}
 - **Safety**: Enable runtime safety in debug builds, use explicit initialization
 - **Testing**: Maintain high test coverage with property-based testing where applicable
 - **Documentation**: Use comprehensive doc comments (//!) for modules and (///) for functions
-- **Modern Patterns**: Adopt Zig 0.12+ syntax and leverage new standard library features
+- **Modern Patterns**: Adopt Zig 0.14+ syntax with b.path() and root_module APIs
 - **Build System**: Use build.zig.zon for dependency management, support cross-compilation
 - **Code Quality**: Maintain low cyclomatic complexity, follow single responsibility principle
 - **Concurrency**: Use proper synchronization primitives, consider async/await for I/O bound tasks
@@ -1075,7 +1075,7 @@ ${analysis.modernPatterns}
     Logger.debug('Generating build.zig file');
 
     const config: Partial<ZigBuildConfig> = {
-      zigVersion: args.zigVersion || '0.12.0',
+      zigVersion: args.zigVersion || '0.14.0',
       buildMode: args.optimizationLevel || 'ReleaseSafe',
       dependencies: {},
       buildSteps: [],
@@ -1146,7 +1146,7 @@ ${recommendations.map(rec => `- ${rec}`).join('\n')}
 
 ## Modern Zig Build System Features to Consider:
 
-### 1. Dependency Management (Zig 0.11+)
+### 1. Modern Module System (Zig 0.14+)
 - Use build.zig.zon for managing dependencies
 - Replace manual @import() with b.dependency()
 
@@ -1169,17 +1169,26 @@ ${recommendations.map(rec => `- ${rec}`).join('\n')}
 ## Example Modernization:
 
 \`\`\`zig
-// Old pattern (deprecated)
+// Old pattern (pre-0.11)
 exe.setTarget(target);
 exe.setBuildMode(mode);
 
-// New pattern (modern)
+// Zig 0.12 pattern
 const exe = b.addExecutable(.{
     .name = "my-app",
     .root_source_file = .{ .path = "src/main.zig" },
     .target = target,
     .optimize = optimize,
 });
+
+// Modern pattern (Zig 0.14+)
+const exe = b.addExecutable(.{
+    .name = "my-app",
+    .root_source_file = b.path("src/main.zig"),
+    .target = target,
+    .optimize = optimize,
+});
+exe.root_module.addImport("dep", dep_module);
 \`\`\`
     `.trim();
   }

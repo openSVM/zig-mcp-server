@@ -311,6 +311,15 @@ export class ZigStyleChecker {
       deprecated.push('- Replace std.build.Builder with *std.Build in Zig 0.12+');
     }
 
+    // Zig 0.14 migration patterns
+    if (code.includes('.{ .path = ') && !code.includes('b.path(')) {
+      deprecated.push('- Modernize to Zig 0.14+: use b.path("file.zig") instead of .{ .path = "file.zig" }');
+    }
+
+    if (code.includes('.addModule(') && !code.includes('root_module')) {
+      deprecated.push('- Modernize to Zig 0.14+: use .root_module.addImport() instead of .addModule()');
+    }
+
     if (code.includes('@import("build_options")')) {
       deprecated.push('- Consider using @import("config") for build options in modern Zig');
     }
@@ -1286,20 +1295,32 @@ export class ZigStyleChecker {
   }
 
   /**
-   * Analyzes modern Zig 0.12+ specific patterns and features
+   * Analyzes modern Zig 0.14+ specific patterns and features
    */
   static analyzeModernZigPatterns(code: string): string {
     const modern: string[] = [];
     const upgrades: string[] = [];
     const deprecations: string[] = [];
 
-    // === ZIG 0.12+ PATTERNS ===
+    // === ZIG 0.14+ PATTERNS ===
+    if (code.includes('b.path(')) {
+      modern.push('✓ Using modern Zig 0.14+ b.path() for file references');
+    }
+
+    if (code.includes('root_module.addImport(')) {
+      modern.push('✓ Using modern Zig 0.14+ module system with root_module.addImport()');
+    }
+
     if (code.includes('.{ .path = ') || code.includes('.{ .name = ')) {
-      modern.push('✓ Using modern Zig 0.12+ struct initialization syntax');
+      if (!code.includes('b.path(')) {
+        upgrades.push('- Upgrade to Zig 0.14+: use b.path() instead of .{ .path = }');
+      } else {
+        modern.push('✓ Using modern struct initialization syntax');
+      }
     }
 
     if (code.includes('b.addExecutable(.{')) {
-      modern.push('✓ Modern build.zig patterns');
+      modern.push('✓ Modern build.zig API');
     }
 
     // === DEPRECATED PATTERNS ===
@@ -1309,6 +1330,10 @@ export class ZigStyleChecker {
 
     if (code.includes('std.build.Builder')) {
       deprecations.push('- Replace std.build.Builder with *std.Build');
+    }
+
+    if (code.includes('.addModule(') && !code.includes('root_module')) {
+      deprecations.push('- Upgrade to Zig 0.14+: use .root_module.addImport() instead of .addModule()');
     }
 
     // === STANDARD LIBRARY UPDATES ===

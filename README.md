@@ -9,7 +9,7 @@ A powerful Model Context Protocol (MCP) server that provides comprehensive Zig l
 
 ## 🚀 What's New in v0.2.0
 
-- **🏗️ Modern Build System Support**: Generate and analyze build.zig files with Zig 0.12+ patterns
+- **🏗️ Modern Build System Support**: Generate and analyze build.zig files with Zig 0.14+ patterns
 - **📦 Dependency Management**: Create build.zig.zon files for modern package management  
 - **🔧 Enhanced Code Analysis**: Improved optimization suggestions and pattern detection
 - **🧪 Comprehensive Testing**: 85+ test cases with full coverage reporting
@@ -21,16 +21,18 @@ A powerful Model Context Protocol (MCP) server that provides comprehensive Zig l
 ### 🏗️ Build System Tools (NEW!)
 
 #### 1. Build System Generation (`generate_build_zig`)
-Generate modern build.zig files with Zig 0.12+ patterns:
-- Cross-compilation support
-- Modern dependency management
+Generate modern build.zig files with Zig 0.14+ patterns:
+- Cross-compilation support with latest target options
+- Modern dependency management with build.zig.zon
 - Test and documentation integration
+- Enhanced module system support
 
 #### 2. Build System Analysis (`analyze_build_zig`) 
 Analyze existing build files and get modernization recommendations:
 - Detect deprecated patterns
-- Suggest Zig 0.12+ alternatives
+- Suggest Zig 0.14+ alternatives
 - Identify missing best practices
+- Module system migration guidance
 
 #### 3. Dependency Management (`generate_build_zon`)
 Generate build.zig.zon files for modern package management:
