@@ -21,7 +21,7 @@ export class ZigBuildSystemHelper {
    */
   static generateBuildZig(config: Partial<ZigBuildConfig>): string {
     const {
-      zigVersion = '0.14.0',
+      zigVersion = '0.15.2',
       buildMode: _buildMode = 'ReleaseSafe',
       targetTriple: _targetTriple,
       dependencies = {},
@@ -108,7 +108,7 @@ ${Object.entries(dependencies)
     return `.{
     .name = "my-project",
     .version = "0.1.0",
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.2",
     
     .dependencies = .{
 ${dependencies
@@ -137,7 +137,7 @@ ${dependencies
    * Provides Zig build system best practices
    */
   static getBuildSystemBestPractices(): string {
-    return `# Zig Build System Best Practices (Zig 0.14+)
+    return `# Zig Build System Best Practices (Zig 0.15.2+)
 
 ## Project Structure
 \`\`\`
@@ -153,7 +153,7 @@ my-project/
 └── docs/            # Documentation
 \`\`\`
 
-## Build.zig Modern Patterns (Zig 0.14+)
+## Build.zig Modern Patterns (Zig 0.15.2+)
 
 ### 1. Use b.path() for File Paths (Zig 0.14+)
 \`\`\`zig
@@ -252,7 +252,7 @@ zig build -Dtarget=aarch64-linux-gnu
 
 ## Common Gotchas & Migration Tips
 
-### Zig 0.14 Changes:
+### Zig 0.15.2 Changes:
 1. **Use b.path()** instead of .{ .path = "file.zig" } for file paths
 2. **Use root_module.addImport()** for adding module dependencies
 3. **Always specify .target and .optimize** in build API
@@ -260,13 +260,13 @@ zig build -Dtarget=aarch64-linux-gnu
 5. **Use b.dependency() instead of @import()** for external dependencies
 6. **Install artifacts with b.installArtifact()** instead of manual install steps
 
-### Migration from 0.12 to 0.14:
+### Migration from 0.12 to 0.15.2:
 \`\`\`zig
 // Old (0.12):
 .root_source_file = .{ .path = "src/main.zig" },
 exe.addModule("dep", dep.module("dep"));
 
-// New (0.14):
+// New (0.15.2):
 .root_source_file = b.path("src/main.zig"),
 exe.root_module.addImport("dep", dep.module("dep"));
 \`\`\``;
@@ -297,10 +297,10 @@ exe.root_module.addImport("dep", dep.module("dep"));
       );
     }
 
-    // Check for Zig 0.14+ patterns
+    // Check for Zig 0.15.2+ patterns
     if (buildZigContent.includes('.{ .path = ') && !buildZigContent.includes('b.path(')) {
       recommendations.push(
-        'Modernize to Zig 0.14+: use b.path("file.zig") instead of .{ .path = "file.zig" }'
+        'Modernize to Zig 0.15.2+: use b.path("file.zig") instead of .{ .path = "file.zig" }'
       );
     }
 
@@ -309,7 +309,7 @@ exe.root_module.addImport("dep", dep.module("dep"));
       !buildZigContent.includes('root_module.addImport(')
     ) {
       recommendations.push(
-        'Modernize to Zig 0.14+: use exe.root_module.addImport() instead of exe.addModule()'
+        'Modernize to Zig 0.15.2+: use exe.root_module.addImport() instead of exe.addModule()'
       );
     }
 

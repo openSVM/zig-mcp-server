@@ -934,7 +934,7 @@ ${analysis.interop}
 ## 📊 Code Metrics & Maintainability
 ${analysis.metrics}
 
-## ✨ Modern Zig Patterns (0.14+)
+## ✨ Modern Zig Patterns (0.15.2+)
 ${analysis.modernPatterns}
 
 ## 🎯 Best Practices Summary
@@ -944,7 +944,7 @@ ${analysis.modernPatterns}
 - **Safety**: Enable runtime safety in debug builds, use explicit initialization
 - **Testing**: Maintain high test coverage with property-based testing where applicable
 - **Documentation**: Use comprehensive doc comments (//!) for modules and (///) for functions
-- **Modern Patterns**: Adopt Zig 0.14+ syntax with b.path() and root_module APIs
+- **Modern Patterns**: Adopt Zig 0.15.2+ syntax with b.path() and root_module APIs
 - **Build System**: Use build.zig.zon for dependency management, support cross-compilation
 - **Code Quality**: Maintain low cyclomatic complexity, follow single responsibility principle
 - **Concurrency**: Use proper synchronization primitives, consider async/await for I/O bound tasks
@@ -1104,7 +1104,7 @@ ${analysis.modernPatterns}
     Logger.debug('Generating build.zig file');
 
     const config: Partial<ZigBuildConfig> = {
-      zigVersion: args.zigVersion || '0.14.0',
+      zigVersion: args.zigVersion || '0.15.2',
       buildMode: args.optimizationLevel || 'ReleaseSafe',
       dependencies: {},
       buildSteps: [],
@@ -1175,7 +1175,7 @@ ${recommendations.map(rec => `- ${rec}`).join('\n')}
 
 ## Modern Zig Build System Features to Consider:
 
-### 1. Modern Module System (Zig 0.14+)
+### 1. Modern Module System (Zig 0.15.2+)
 - Use build.zig.zon for managing dependencies
 - Replace manual @import() with b.dependency()
 
@@ -1210,7 +1210,7 @@ const exe = b.addExecutable(.{
     .optimize = optimize,
 });
 
-// Modern pattern (Zig 0.14+)
+// Modern pattern (Zig 0.15.2+)
 const exe = b.addExecutable(.{
     .name = "my-app",
     .root_source_file = b.path("src/main.zig"),
@@ -1273,23 +1273,23 @@ ${Object.entries(ZigBuildSystemHelper.getExampleDependencies())
     const examples = [
       {
         name: 'Basic Executable',
-        description: 'Simple executable with modern build patterns',
-        config: { zigVersion: '0.12.0', buildMode: 'ReleaseSafe' as OptimizationLevel },
+        description: 'Simple executable with modern Zig 0.15.2+ build patterns',
+        config: { zigVersion: '0.15.2', buildMode: 'ReleaseSafe' as OptimizationLevel },
       },
       {
         name: 'Library with Dependencies',
-        description: 'Library project with external dependencies',
+        description: 'Library project with external dependencies using modern module system',
         config: {
-          zigVersion: '0.12.0',
+          zigVersion: '0.15.2',
           buildMode: 'ReleaseSafe' as OptimizationLevel,
           dependencies: { args: 'https://github.com/MasterQ32/zig-args' },
         },
       },
       {
         name: 'Cross-platform Application',
-        description: 'Application configured for multiple platforms',
+        description: 'Application configured for multiple platforms with Zig 0.15.2+ patterns',
         config: {
-          zigVersion: '0.12.0',
+          zigVersion: '0.15.2',
           buildMode: 'ReleaseFast' as OptimizationLevel,
           targetTriple: 'native',
         },

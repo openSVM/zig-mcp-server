@@ -9,20 +9,20 @@ A powerful Model Context Protocol (MCP) server that provides comprehensive Zig l
 
 ## 🚀 What's New in v0.2.0+
 
-- **🏗️ Zig 0.14+ Support**: Fully updated with modern `b.path()` and `root_module` patterns
+- **🏗️ Zig 0.15.2+ Support**: Fully updated with modern `b.path()` and `root_module` patterns
 - **📦 Enhanced Module System**: Support for latest module system with `root_module.addImport()`
 - **🔄 Migration Guidance**: Automated detection and upgrade suggestions for legacy patterns
 - **🔧 Enhanced Code Analysis**: Improved optimization suggestions and modern pattern detection
 - **🧪 Comprehensive Testing**: 85+ test cases with full coverage reporting
 - **⚡ Better Code Quality**: Fixed all TypeScript compilation errors and linting issues
-- **📚 Extended Documentation**: Complete Zig 0.14+ build system guide with migration tips
+- **📚 Extended Documentation**: Complete Zig 0.15.2+ build system guide with migration tips
 
 ## 🛠️ Features
 
 ### 🏗️ Build System Tools (NEW!)
 
 #### 1. Build System Generation (`generate_build_zig`)
-Generate modern build.zig files with Zig 0.14+ patterns:
+Generate modern build.zig files with Zig 0.15.2+ patterns:
 - Cross-compilation support with latest target options
 - Modern dependency management with build.zig.zon
 - Test and documentation integration
@@ -31,7 +31,7 @@ Generate modern build.zig files with Zig 0.14+ patterns:
 #### 2. Build System Analysis (`analyze_build_zig`) 
 Analyze existing build files and get modernization recommendations:
 - Detect deprecated patterns
-- Suggest Zig 0.14+ alternatives
+- Suggest Zig 0.15.2+ alternatives
 - Identify missing best practices
 - Module system migration guidance
 
