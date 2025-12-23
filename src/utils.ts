@@ -113,36 +113,48 @@ export class ZigStyleChecker {
     // Variable naming (snake_case)
     const badVariableNames = code.match(/\b[a-z]+[A-Z][a-zA-Z]*\s*[=:]/g);
     if (badVariableNames) {
-      issues.push(`- Use snake_case for variables: found ${badVariableNames.length} camelCase variables`);
+      issues.push(
+        `- Use snake_case for variables: found ${badVariableNames.length} camelCase variables`
+      );
     }
-    
+
     const pascalCaseVars = code.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)*\s*[=:]/g);
     if (pascalCaseVars) {
-      issues.push(`- Use snake_case for variables: found ${pascalCaseVars.length} PascalCase variables`);
+      issues.push(
+        `- Use snake_case for variables: found ${pascalCaseVars.length} PascalCase variables`
+      );
     }
 
     // Function naming
     const badFunctionNames = code.match(/(?:pub\s+)?fn\s+[a-z]+[A-Z][a-zA-Z]*\s*\(/g);
     if (badFunctionNames) {
-      issues.push(`- Use snake_case for functions: found ${badFunctionNames.length} camelCase functions`);
+      issues.push(
+        `- Use snake_case for functions: found ${badFunctionNames.length} camelCase functions`
+      );
     }
 
     // Type naming (PascalCase)
     const badTypeNames = code.match(/(?:const|var)\s+[a-z][a-zA-Z]*\s*=\s*(?:struct|enum|union)/g);
     if (badTypeNames) {
-      issues.push(`- Use PascalCase for types: found ${badTypeNames.length} incorrectly named types`);
+      issues.push(
+        `- Use PascalCase for types: found ${badTypeNames.length} incorrectly named types`
+      );
     }
 
     // Constant naming (ALL_CAPS or PascalCase for types)
     const constantPatterns = code.match(/const\s+[a-z][a-z_]*\s*[=:]/g);
     if (constantPatterns) {
-      warnings.push(`- Consider SCREAMING_SNAKE_CASE for module-level constants: found ${constantPatterns.length} cases`);
+      warnings.push(
+        `- Consider SCREAMING_SNAKE_CASE for module-level constants: found ${constantPatterns.length} cases`
+      );
     }
 
     // === FORMATTING AND STYLE ===
     // Whitespace issues
     const lines = code.split('\n');
-    const trailingWhitespaceLines = lines.filter((line, i) => line.match(/\s+$/) && i < lines.length - 1);
+    const trailingWhitespaceLines = lines.filter(
+      (line, i) => line.match(/\s+$/) && i < lines.length - 1
+    );
     if (trailingWhitespaceLines.length > 0) {
       issues.push(`- Remove trailing whitespace: found on ${trailingWhitespaceLines.length} lines`);
     }
@@ -162,7 +174,9 @@ export class ZigStyleChecker {
     // Line length (Zig recommends 100 chars)
     const longLines = lines.filter(line => line.length > 100);
     if (longLines.length > 0) {
-      warnings.push(`- Consider breaking long lines: ${longLines.length} lines exceed 100 characters`);
+      warnings.push(
+        `- Consider breaking long lines: ${longLines.length} lines exceed 100 characters`
+      );
     }
 
     const veryLongLines = lines.filter(line => line.length > 120);
@@ -176,7 +190,9 @@ export class ZigStyleChecker {
     const docComments = code.match(/\/\/[!/][^\n]*/g);
     if (publicFunctions && (!docComments || docComments.length < publicFunctions.length)) {
       const missing = publicFunctions.length - (docComments?.length || 0);
-      issues.push(`- Add documentation for public functions: ${missing} functions lack doc comments`);
+      issues.push(
+        `- Add documentation for public functions: ${missing} functions lack doc comments`
+      );
     }
 
     // Missing module-level documentation
@@ -200,7 +216,9 @@ export class ZigStyleChecker {
     // Semicolon usage (discouraged in Zig except for specific cases)
     const unnecessarySemicolons = code.match(/;\s*$/gm);
     if (unnecessarySemicolons && unnecessarySemicolons.length > 3) {
-      suggestions.push(`- Remove unnecessary semicolons: found ${unnecessarySemicolons.length} trailing semicolons`);
+      suggestions.push(
+        `- Remove unnecessary semicolons: found ${unnecessarySemicolons.length} trailing semicolons`
+      );
     }
 
     // === BRACE STYLE ===
@@ -228,7 +246,9 @@ export class ZigStyleChecker {
     // Check for old-style array/slice syntax
     const oldArraySyntax = code.match(/\[\]u8\{/g);
     if (oldArraySyntax) {
-      suggestions.push(`- Use modern array literal syntax: found ${oldArraySyntax.length} old-style arrays`);
+      suggestions.push(
+        `- Use modern array literal syntax: found ${oldArraySyntax.length} old-style arrays`
+      );
     }
 
     // Check for deprecated patterns
@@ -245,15 +265,15 @@ export class ZigStyleChecker {
 
     // === COMBINE RESULTS ===
     const result: string[] = [];
-    
+
     if (issues.length > 0) {
       result.push('**Critical Issues:**', ...issues, '');
     }
-    
+
     if (warnings.length > 0) {
       result.push('**Warnings:**', ...warnings, '');
     }
-    
+
     if (suggestions.length > 0) {
       result.push('**Suggestions:**', ...suggestions);
     }
@@ -276,7 +296,7 @@ export class ZigStyleChecker {
       }
 
       const indent = line.match(/^(\s*)/)?.[1]?.length || 0;
-      
+
       // Check for mixed spaces and tabs
       if (line.match(/^[\s]*\t[\s]*/) || line.match(/^[\s]*\t/)) {
         inconsistentIndent = true;
@@ -302,13 +322,26 @@ export class ZigStyleChecker {
     if (code.includes('.setTarget(')) {
       deprecated.push('- Replace .setTarget() with target parameter in addExecutable()');
     }
-    
+
     if (code.includes('.setBuildMode(')) {
       deprecated.push('- Replace .setBuildMode() with optimize parameter in addExecutable()');
     }
 
     if (code.includes('std.build.Builder')) {
       deprecated.push('- Replace std.build.Builder with *std.Build in Zig 0.12+');
+    }
+
+    // Zig 0.15.2 migration patterns
+    if (code.includes('.{ .path = ') && !code.includes('b.path(')) {
+      deprecated.push(
+        '- Modernize to Zig 0.15.2+: use b.path("file.zig") instead of .{ .path = "file.zig" }'
+      );
+    }
+
+    if (code.includes('.addModule(') && !code.includes('root_module')) {
+      deprecated.push(
+        '- Modernize to Zig 0.15.2+: use .root_module.addImport() instead of .addModule()'
+      );
     }
 
     if (code.includes('@import("build_options")')) {
@@ -324,14 +357,17 @@ export class ZigStyleChecker {
 
   private static analyzeImports(code: string): string[] {
     const suggestions: string[] = [];
-    
+
     // Check import organization
     const imports = code.match(/@import\([^)]+\)/g);
     if (imports && imports.length > 1) {
       // Check if imports are at the top
       const firstImportIndex = code.indexOf('@import');
-      const nonCommentCodeBefore = code.slice(0, firstImportIndex).replace(/\/\/[^\n]*\n?/g, '').trim();
-      
+      const nonCommentCodeBefore = code
+        .slice(0, firstImportIndex)
+        .replace(/\/\/[^\n]*\n?/g, '')
+        .trim();
+
       if (nonCommentCodeBefore.length > 0) {
         suggestions.push('- Move imports to the top of the file');
       }
@@ -354,7 +390,7 @@ export class ZigStyleChecker {
     if (code.includes('std.ArrayList') && !code.includes('deinit')) {
       antiPatterns.push('- Missing deinit() for ArrayList - potential memory leak');
     }
-    
+
     if (code.includes('std.HashMap') && !code.includes('deinit')) {
       antiPatterns.push('- Missing deinit() for HashMap - potential memory leak');
     }
@@ -380,11 +416,15 @@ export class ZigStyleChecker {
     // Early returns vs nested conditions
     const nestedIfCount = (code.match(/if\s*\([^)]*\)\s*\{[^}]*if\s*\(/g) || []).length;
     if (nestedIfCount > 2) {
-      improvements.push(`- Consider early returns to reduce nesting (${nestedIfCount} nested conditions)`);
+      improvements.push(
+        `- Consider early returns to reduce nesting (${nestedIfCount} nested conditions)`
+      );
     }
 
     // Switch vs if-else chains
-    const ifElseChains = code.match(/if\s*\([^)]*\)\s*\{[^}]*\}\s*else\s+if\s*\([^)]*\)\s*\{[^}]*\}\s*else\s+if/g);
+    const ifElseChains = code.match(
+      /if\s*\([^)]*\)\s*\{[^}]*\}\s*else\s+if\s*\([^)]*\)\s*\{[^}]*\}\s*else\s+if/g
+    );
     if (ifElseChains && ifElseChains.length > 0) {
       improvements.push('- Consider switch statements for multiple conditions on same variable');
     }
@@ -399,7 +439,9 @@ export class ZigStyleChecker {
     if (code.includes('unreachable')) {
       const unreachableCount = (code.match(/unreachable/g) || []).length;
       if (unreachableCount > 2) {
-        antiPatterns.push(`- Excessive unreachable usage (${unreachableCount}) - review error handling`);
+        antiPatterns.push(
+          `- Excessive unreachable usage (${unreachableCount}) - review error handling`
+        );
       }
     }
 
@@ -416,7 +458,9 @@ export class ZigStyleChecker {
     // === STRING AND FORMATTING PATTERNS ===
     // String formatting
     if (code.includes('std.fmt.allocPrint')) {
-      improvements.push('- Consider std.fmt.bufPrint for stack-based formatting when size is known');
+      improvements.push(
+        '- Consider std.fmt.bufPrint for stack-based formatting when size is known'
+      );
     }
 
     // String comparison
@@ -428,7 +472,9 @@ export class ZigStyleChecker {
     // Comptime usage
     const comptimeUsage = (code.match(/comptime/g) || []).length;
     if (comptimeUsage > 0) {
-      modernPatterns.push(`✓ Excellent: Using comptime (${comptimeUsage} instances) for compile-time evaluation`);
+      modernPatterns.push(
+        `✓ Excellent: Using comptime (${comptimeUsage} instances) for compile-time evaluation`
+      );
     }
 
     // Generic programming
@@ -455,7 +501,9 @@ export class ZigStyleChecker {
     // Defer usage
     const deferCount = (code.match(/defer/g) || []).length;
     if (deferCount > 0) {
-      modernPatterns.push(`✓ Excellent: Using defer (${deferCount} instances) for automatic cleanup`);
+      modernPatterns.push(
+        `✓ Excellent: Using defer (${deferCount} instances) for automatic cleanup`
+      );
     }
 
     // === PERFORMANCE PATTERNS ===
@@ -466,7 +514,9 @@ export class ZigStyleChecker {
 
     // Inline functions
     if (code.includes('inline fn')) {
-      improvements.push('- Review inline functions: ensure performance benefit justifies code size increase');
+      improvements.push(
+        '- Review inline functions: ensure performance benefit justifies code size increase'
+      );
     }
 
     // SIMD usage
@@ -482,14 +532,16 @@ export class ZigStyleChecker {
 
     // Thread safety
     if (code.includes('std.Thread') && !code.includes('Mutex')) {
-      antiPatterns.push('- Multi-threading without synchronization primitives - race condition risk');
+      antiPatterns.push(
+        '- Multi-threading without synchronization primitives - race condition risk'
+      );
     }
 
     // === ARCHITECTURAL PATTERNS ===
     // Module organization
     const exportCount = (code.match(/pub\s+(?:fn|const|var)/g) || []).length;
     const privateCount = (code.match(/(?:fn|const|var)\s+\w+/g) || []).length - exportCount;
-    
+
     if (exportCount > privateCount && exportCount > 5) {
       architecturalConcerns.push('- High public API surface - consider reducing exported symbols');
     }
@@ -497,9 +549,11 @@ export class ZigStyleChecker {
     // Single responsibility
     const functionCount = (code.match(/fn\s+\w+/g) || []).length;
     const avgLinesPerFunction = functionCount > 0 ? code.split('\n').length / functionCount : 0;
-    
+
     if (avgLinesPerFunction > 50) {
-      architecturalConcerns.push('- Large functions detected - consider breaking into smaller units');
+      architecturalConcerns.push(
+        '- Large functions detected - consider breaking into smaller units'
+      );
     }
 
     // === TESTING PATTERNS ===
@@ -512,7 +566,7 @@ export class ZigStyleChecker {
     // C interop
     if (code.includes('@cImport') || code.includes('extern')) {
       modernPatterns.push('✓ Advanced: Using C interoperability');
-      
+
       if (!code.includes('std.c.')) {
         improvements.push('- Consider using std.c namespace for C library functions');
       }
@@ -520,19 +574,19 @@ export class ZigStyleChecker {
 
     // === COMBINE RESULTS ===
     const result: string[] = [];
-    
+
     if (antiPatterns.length > 0) {
       result.push('**Anti-patterns & Issues:**', ...antiPatterns, '');
     }
-    
+
     if (improvements.length > 0) {
       result.push('**Improvement Opportunities:**', ...improvements, '');
     }
-    
+
     if (modernPatterns.length > 0) {
       result.push('**Modern Zig Patterns Detected:**', ...modernPatterns, '');
     }
-    
+
     if (architecturalConcerns.length > 0) {
       result.push('**Architectural Considerations:**', ...architecturalConcerns);
     }
@@ -562,14 +616,19 @@ export class ZigStyleChecker {
     // Buffer bounds checking
     const arrayAccess = code.match(/\[[^\]]*\]/g);
     if (arrayAccess && !code.includes('bounds check')) {
-      const unsafeAccess = arrayAccess.filter(access => 
-        !access.includes('..') && // range syntax
-        !access.includes('std.math.min') && // bounds checking
-        access.includes('[i]') || access.includes('[idx]') || /\[\w+\]/.test(access)
+      const unsafeAccess = arrayAccess.filter(
+        access =>
+          (!access.includes('..') && // range syntax
+            !access.includes('std.math.min') && // bounds checking
+            access.includes('[i]')) ||
+          access.includes('[idx]') ||
+          /\[\w+\]/.test(access)
       );
-      
+
       if (unsafeAccess.length > 0) {
-        safetyWarnings.push(`- Potential bounds violations: ${unsafeAccess.length} unchecked array accesses`);
+        safetyWarnings.push(
+          `- Potential bounds violations: ${unsafeAccess.length} unchecked array accesses`
+        );
       }
     }
 
@@ -640,9 +699,11 @@ export class ZigStyleChecker {
     // Memory leaks
     const allocPatterns = (code.match(/\.alloc\(|\.create\(/g) || []).length;
     const deallocPatterns = (code.match(/\.free\(|\.destroy\(|deinit\(/g) || []).length;
-    
+
     if (allocPatterns > deallocPatterns + 1) {
-      criticalIssues.push(`- Potential memory leaks: ${allocPatterns} allocations vs ${deallocPatterns} deallocations`);
+      criticalIssues.push(
+        `- Potential memory leaks: ${allocPatterns} allocations vs ${deallocPatterns} deallocations`
+      );
     }
 
     // Double-free protection
@@ -685,12 +746,16 @@ export class ZigStyleChecker {
 
     // Timing attacks
     if (code.includes('std.crypto') && code.includes('std.mem.eql')) {
-      safetyWarnings.push('- String comparison in crypto context - consider constant-time comparison');
+      safetyWarnings.push(
+        '- String comparison in crypto context - consider constant-time comparison'
+      );
     }
 
     // File operations security
     if (code.includes('std.fs.openFile') && !code.includes('sanitize')) {
-      securityConcerns.push('- File operations without path sanitization - directory traversal risk');
+      securityConcerns.push(
+        '- File operations without path sanitization - directory traversal risk'
+      );
     }
 
     // === PLATFORM SAFETY ===
@@ -700,7 +765,10 @@ export class ZigStyleChecker {
     }
 
     // Endianness concerns
-    if (code.includes('@bitCast') && (code.includes('u16') || code.includes('u32') || code.includes('u64'))) {
+    if (
+      code.includes('@bitCast') &&
+      (code.includes('u16') || code.includes('u32') || code.includes('u64'))
+    ) {
       safetyWarnings.push('- Bit casting multi-byte integers - consider endianness implications');
     }
 
@@ -717,19 +785,19 @@ export class ZigStyleChecker {
 
     // === COMBINE RESULTS ===
     const result: string[] = [];
-    
+
     if (criticalIssues.length > 0) {
       result.push('🚨 **Critical Safety Issues:**', ...criticalIssues, '');
     }
-    
+
     if (securityConcerns.length > 0) {
       result.push('🔒 **Security Concerns:**', ...securityConcerns, '');
     }
-    
+
     if (safetyWarnings.length > 0) {
       result.push('⚠️ **Safety Warnings:**', ...safetyWarnings, '');
     }
-    
+
     if (bestPractices.length > 0) {
       result.push('✅ **Safety Best Practices:**', ...bestPractices);
     }
@@ -763,9 +831,13 @@ export class ZigStyleChecker {
     // Nested loops analysis
     const nestedLoopDepth = this.calculateNestedLoopDepth(code);
     if (nestedLoopDepth >= 3) {
-      hotspots.push(`- Deep nested loops detected (depth ${nestedLoopDepth}) - O(n³) or worse complexity`);
+      hotspots.push(
+        `- Deep nested loops detected (depth ${nestedLoopDepth}) - O(n³) or worse complexity`
+      );
     } else if (nestedLoopDepth === 2) {
-      optimizations.push('- Nested loops present - consider algorithm optimization for large datasets');
+      optimizations.push(
+        '- Nested loops present - consider algorithm optimization for large datasets'
+      );
     }
 
     // Hash map usage in loops
@@ -787,7 +859,9 @@ export class ZigStyleChecker {
     // Frequent small allocations
     const allocCount = (code.match(/\.alloc\(/g) || []).length;
     if (allocCount > 5) {
-      memoryEfficiency.push(`- Many allocations detected (${allocCount}) - consider arena allocator`);
+      memoryEfficiency.push(
+        `- Many allocations detected (${allocCount}) - consider arena allocator`
+      );
     }
 
     // String building inefficiency
@@ -799,7 +873,9 @@ export class ZigStyleChecker {
     // Constant expressions
     const constantMath = code.match(/\d+\s*[+\-*]/g);
     if (constantMath && constantMath.length > 2) {
-      compiletimeOptimizations.push(`- ${constantMath.length} constant expressions - use comptime evaluation`);
+      compiletimeOptimizations.push(
+        `- ${constantMath.length} constant expressions - use comptime evaluation`
+      );
     }
 
     // Type computations
@@ -819,17 +895,21 @@ export class ZigStyleChecker {
     // Packed structs for memory efficiency
     if (code.includes('struct {') && !code.includes('packed')) {
       const structCount = (code.match(/struct\s*\{/g) || []).length;
-      memoryEfficiency.push(`- ${structCount} unpacked structs - consider packed structs for memory efficiency`);
+      memoryEfficiency.push(
+        `- ${structCount} unpacked structs - consider packed structs for memory efficiency`
+      );
     }
 
     // Array of Structs vs Struct of Arrays
     if (code.includes('[]struct') || code.includes('ArrayList(struct')) {
-      optimizations.push('- Array of Structs detected - consider Struct of Arrays for better cache locality');
+      optimizations.push(
+        '- Array of Structs detected - consider Struct of Arrays for better cache locality'
+      );
     }
 
     // === SIMD AND VECTORIZATION ===
     // SIMD opportunities
-    if (code.match(/for\s*\([^)]*\)\s*\{[^}]*[\+\-\*/][^}]*\}/s) && !code.includes('@Vector')) {
+    if (code.match(/for\s*\([^)]*\)\s*\{[^}]*[+*/-][^}]*\}/s) && !code.includes('@Vector')) {
       optimizations.push('- Math operations in loops - consider SIMD vectorization with @Vector');
     }
 
@@ -842,7 +922,9 @@ export class ZigStyleChecker {
     // Inline function usage
     if (code.includes('inline fn')) {
       const inlineCount = (code.match(/inline fn/g) || []).length;
-      optimizations.push(`- ${inlineCount} inline functions - verify performance benefit vs code size`);
+      optimizations.push(
+        `- ${inlineCount} inline functions - verify performance benefit vs code size`
+      );
     }
 
     // Function call overhead in hot loops
@@ -880,8 +962,10 @@ export class ZigStyleChecker {
     }
 
     // Integer vs floating point
-    if (code.match(/f\d+.*[+\-*\/].*f\d+/) && code.includes('round')) {
-      optimizations.push('- Floating point with rounding - consider integer arithmetic where possible');
+    if (code.match(/f\d+.*[+*/-].*f\d+/) && code.includes('round')) {
+      optimizations.push(
+        '- Floating point with rounding - consider integer arithmetic where possible'
+      );
     }
 
     // === CACHE EFFICIENCY ===
@@ -914,32 +998,36 @@ export class ZigStyleChecker {
 
     // Built-in profiling
     benchmarkSuggestions.push('- Use `zig build -Doptimize=ReleaseFast` for production benchmarks');
-    benchmarkSuggestions.push('- Consider `zig build -Dcpu=native` for target-specific optimization');
+    benchmarkSuggestions.push(
+      '- Consider `zig build -Dcpu=native` for target-specific optimization'
+    );
     benchmarkSuggestions.push('- Profile with `perf record` on Linux for detailed analysis');
 
     // === BUILD SYSTEM OPTIMIZATIONS ===
     compiletimeOptimizations.push('- Use `--strip` flag for smaller binaries in production');
-    compiletimeOptimizations.push('- Consider `--release=safe` for optimized builds with safety checks');
+    compiletimeOptimizations.push(
+      '- Consider `--release=safe` for optimized builds with safety checks'
+    );
 
     // === COMBINE RESULTS ===
     const result: string[] = [];
-    
+
     if (hotspots.length > 0) {
       result.push('🔥 **Performance Hotspots:**', ...hotspots, '');
     }
-    
+
     if (optimizations.length > 0) {
       result.push('⚡ **Optimization Opportunities:**', ...optimizations, '');
     }
-    
+
     if (memoryEfficiency.length > 0) {
       result.push('🧠 **Memory Efficiency:**', ...memoryEfficiency, '');
     }
-    
+
     if (compiletimeOptimizations.length > 0) {
       result.push('⏱️ **Compile-time Optimizations:**', ...compiletimeOptimizations, '');
     }
-    
+
     if (benchmarkSuggestions.length > 0) {
       result.push('📊 **Benchmarking & Profiling:**', ...benchmarkSuggestions);
     }
@@ -951,11 +1039,13 @@ export class ZigStyleChecker {
     // Add performance analysis summary
     const codeLength = code.split('\n').length;
     const complexityEstimate = this.estimateComplexity(code);
-    
+
     result.push('', '📈 **Performance Analysis Summary:**');
     result.push(`- Code size: ${codeLength} lines`);
     result.push(`- Estimated complexity: ${complexityEstimate}`);
-    result.push(`- Optimization potential: ${this.getOptimizationPotential(hotspots, optimizations)}`);
+    result.push(
+      `- Optimization potential: ${this.getOptimizationPotential(hotspots, optimizations)}`
+    );
 
     return result.join('\n');
   }
@@ -964,16 +1054,16 @@ export class ZigStyleChecker {
     let maxDepth = 0;
     let currentDepth = 0;
     let inLoop = false;
-    
+
     const lines = code.split('\n');
-    
+
     for (const line of lines) {
       if (line.match(/\b(?:for|while)\s*\(/)) {
         currentDepth++;
         inLoop = true;
         maxDepth = Math.max(maxDepth, currentDepth);
       }
-      
+
       if (line.includes('}') && inLoop) {
         currentDepth = Math.max(0, currentDepth - 1);
         if (currentDepth === 0) {
@@ -981,7 +1071,7 @@ export class ZigStyleChecker {
         }
       }
     }
-    
+
     return maxDepth;
   }
 
@@ -989,18 +1079,32 @@ export class ZigStyleChecker {
     const loops = (code.match(/(?:for|while)\s*\(/g) || []).length;
     const nestedLoops = (code.match(/(?:for|while)[^{]*\{[^}]*(?:for|while)/g) || []).length;
     const recursion = (code.match(/fn\s+\w+[^{]*\{[^}]*\w+\s*\([^)]*\)/g) || []).length;
-    
-    if (nestedLoops > 1) {return 'O(n³) or higher';}
-    if (nestedLoops > 0) {return 'O(n²)';}
-    if (loops > 0) {return 'O(n)';}
-    if (recursion > 0) {return 'O(log n) to O(n) - depends on recursion';}
+
+    if (nestedLoops > 1) {
+      return 'O(n³) or higher';
+    }
+    if (nestedLoops > 0) {
+      return 'O(n²)';
+    }
+    if (loops > 0) {
+      return 'O(n)';
+    }
+    if (recursion > 0) {
+      return 'O(log n) to O(n) - depends on recursion';
+    }
     return 'O(1)';
   }
 
   private static getOptimizationPotential(hotspots: string[], optimizations: string[]): string {
-    if (hotspots.length > 2) {return 'High - significant improvements possible';}
-    if (optimizations.length > 3) {return 'Medium - several improvements available';}
-    if (optimizations.length > 0) {return 'Low - minor improvements possible';}
+    if (hotspots.length > 2) {
+      return 'High - significant improvements possible';
+    }
+    if (optimizations.length > 3) {
+      return 'Medium - several improvements available';
+    }
+    if (optimizations.length > 0) {
+      return 'Low - minor improvements possible';
+    }
     return 'Minimal - code is well-optimized';
   }
 
@@ -1015,7 +1119,7 @@ export class ZigStyleChecker {
     // === ASYNC/AWAIT PATTERNS ===
     if (code.includes('async') || code.includes('await')) {
       patterns.push('✓ Using async/await for concurrent programming');
-      
+
       if (!code.includes('suspend') && !code.includes('resume')) {
         recommendations.push('- Consider explicit suspend/resume for fine-grained async control');
       }
@@ -1024,7 +1128,7 @@ export class ZigStyleChecker {
     // === THREAD SAFETY ===
     if (code.includes('std.Thread')) {
       patterns.push('✓ Multi-threading implementation detected');
-      
+
       if (!code.includes('Mutex') && !code.includes('Atomic')) {
         issues.push('- Multi-threading without synchronization primitives - race condition risk');
       }
@@ -1046,7 +1150,9 @@ export class ZigStyleChecker {
     // === SHARED STATE ANALYSIS ===
     const globalVars = code.match(/var\s+\w+\s*:/g);
     if (globalVars && code.includes('std.Thread')) {
-      issues.push(`- ${globalVars.length} global variables in multi-threaded context - ensure thread safety`);
+      issues.push(
+        `- ${globalVars.length} global variables in multi-threaded context - ensure thread safety`
+      );
     }
 
     // === DATA RACES ===
@@ -1054,7 +1160,11 @@ export class ZigStyleChecker {
       issues.push('- Potential data race: non-atomic increment operations');
     }
 
-    const result = this.formatAnalysisResults('Concurrency Analysis', { issues, recommendations, patterns });
+    const result = this.formatAnalysisResults('Concurrency Analysis', {
+      issues,
+      recommendations,
+      patterns,
+    });
     return result || '✅ No concurrency patterns detected';
   }
 
@@ -1069,7 +1179,9 @@ export class ZigStyleChecker {
     // === COMPTIME EVALUATION ===
     const comptimeCount = (code.match(/comptime/g) || []).length;
     if (comptimeCount > 0) {
-      advanced.push(`✓ Excellent: ${comptimeCount} comptime evaluations for compile-time optimization`);
+      advanced.push(
+        `✓ Excellent: ${comptimeCount} comptime evaluations for compile-time optimization`
+      );
     }
 
     // === TYPE MANIPULATION ===
@@ -1084,7 +1196,7 @@ export class ZigStyleChecker {
     // === GENERIC PROGRAMMING ===
     if (code.includes('anytype')) {
       advanced.push('✓ Using generic programming with anytype parameters');
-      
+
       if (!code.includes('@TypeOf')) {
         suggestions.push('- Consider type constraints with @TypeOf for better error messages');
       }
@@ -1107,10 +1219,16 @@ export class ZigStyleChecker {
     // === OPTIMIZATION OPPORTUNITIES ===
     const constantExpressions = code.match(/\d+\s*[+\-*]/g);
     if (constantExpressions && !code.includes('comptime')) {
-      opportunities.push(`- ${constantExpressions.length} constant expressions could use comptime evaluation`);
+      opportunities.push(
+        `- ${constantExpressions.length} constant expressions could use comptime evaluation`
+      );
     }
 
-    const result = this.formatAnalysisResults('Metaprogramming Analysis', { advanced, suggestions, opportunities });
+    const result = this.formatAnalysisResults('Metaprogramming Analysis', {
+      advanced,
+      suggestions,
+      opportunities,
+    });
     return result || '✅ Basic metaprogramming - consider advanced patterns for optimization';
   }
 
@@ -1185,7 +1303,10 @@ export class ZigStyleChecker {
       insights.push('✓ Cross-compilation support');
     }
 
-    const result = this.formatAnalysisResults('Build System Analysis', { insights, recommendations });
+    const result = this.formatAnalysisResults('Build System Analysis', {
+      insights,
+      recommendations,
+    });
     return result || '✅ No build system patterns detected';
   }
 
@@ -1200,7 +1321,7 @@ export class ZigStyleChecker {
     // === C INTEROP ===
     if (code.includes('@cImport')) {
       patterns.push('✓ C library integration with @cImport');
-      
+
       if (!code.includes('std.c.')) {
         suggestions.push('- Consider using std.c namespace for standard C functions');
       }
@@ -1229,7 +1350,11 @@ export class ZigStyleChecker {
       warnings.push('- C functions may fail - consider error handling');
     }
 
-    const result = this.formatAnalysisResults('Interoperability Analysis', { patterns, warnings, suggestions });
+    const result = this.formatAnalysisResults('Interoperability Analysis', {
+      patterns,
+      warnings,
+      suggestions,
+    });
     return result || '✅ No interoperability patterns detected';
   }
 
@@ -1245,7 +1370,7 @@ export class ZigStyleChecker {
     const totalLines = lines.length;
     const codeLines = lines.filter(line => line.trim() && !line.trim().startsWith('//')).length;
     const commentLines = lines.filter(line => line.trim().startsWith('//')).length;
-    
+
     metrics.push(`- Total lines: ${totalLines}`);
     metrics.push(`- Code lines: ${codeLines}`);
     metrics.push(`- Comment lines: ${commentLines}`);
@@ -1258,7 +1383,7 @@ export class ZigStyleChecker {
     if (functions.length > 0) {
       const avgLinesPerFunction = Math.round(codeLines / functions.length);
       metrics.push(`- Average lines per function: ${avgLinesPerFunction}`);
-      
+
       if (avgLinesPerFunction > 50) {
         concerns.push('- Large functions detected - consider decomposition');
       }
@@ -1267,9 +1392,9 @@ export class ZigStyleChecker {
     // === COMPLEXITY METRICS ===
     const conditionals = (code.match(/\b(if|switch|while|for)\b/g) || []).length;
     const complexity = Math.floor(conditionals / Math.max(functions.length, 1));
-    
+
     metrics.push(`- Cyclomatic complexity: ~${complexity} per function`);
-    
+
     if (complexity > 10) {
       concerns.push('- High complexity - consider simplifying control flow');
     }
@@ -1277,7 +1402,7 @@ export class ZigStyleChecker {
     // === PUBLIC API SURFACE ===
     const publicFns = (code.match(/pub\s+fn/g) || []).length;
     const publicTypes = (code.match(/pub\s+const\s+\w+\s*=\s*(?:struct|enum|union)/g) || []).length;
-    
+
     metrics.push(`- Public functions: ${publicFns}`);
     metrics.push(`- Public types: ${publicTypes}`);
 
@@ -1286,20 +1411,32 @@ export class ZigStyleChecker {
   }
 
   /**
-   * Analyzes modern Zig 0.12+ specific patterns and features
+   * Analyzes modern Zig 0.15.2+ specific patterns and features
    */
   static analyzeModernZigPatterns(code: string): string {
     const modern: string[] = [];
     const upgrades: string[] = [];
     const deprecations: string[] = [];
 
-    // === ZIG 0.12+ PATTERNS ===
+    // === ZIG 0.15.2+ PATTERNS ===
+    if (code.includes('b.path(')) {
+      modern.push('✓ Using modern Zig 0.15.2+ b.path() for file references');
+    }
+
+    if (code.includes('root_module.addImport(')) {
+      modern.push('✓ Using modern Zig 0.15.2+ module system with root_module.addImport()');
+    }
+
     if (code.includes('.{ .path = ') || code.includes('.{ .name = ')) {
-      modern.push('✓ Using modern Zig 0.12+ struct initialization syntax');
+      if (!code.includes('b.path(')) {
+        upgrades.push('- Upgrade to Zig 0.15.2+: use b.path() instead of .{ .path = }');
+      } else {
+        modern.push('✓ Using modern struct initialization syntax');
+      }
     }
 
     if (code.includes('b.addExecutable(.{')) {
-      modern.push('✓ Modern build.zig patterns');
+      modern.push('✓ Modern build.zig API');
     }
 
     // === DEPRECATED PATTERNS ===
@@ -1311,12 +1448,22 @@ export class ZigStyleChecker {
       deprecations.push('- Replace std.build.Builder with *std.Build');
     }
 
+    if (code.includes('.addModule(') && !code.includes('root_module')) {
+      deprecations.push(
+        '- Upgrade to Zig 0.15.2+: use .root_module.addImport() instead of .addModule()'
+      );
+    }
+
     // === STANDARD LIBRARY UPDATES ===
     if (code.includes('std.fmt.allocPrintZ')) {
       upgrades.push('- Consider std.fmt.allocPrint with explicit null termination');
     }
 
-    const result = this.formatAnalysisResults('Modern Zig Analysis', { modern, upgrades, deprecations });
+    const result = this.formatAnalysisResults('Modern Zig Analysis', {
+      modern,
+      upgrades,
+      deprecations,
+    });
     return result || '✅ Code uses modern Zig patterns';
   }
 
@@ -1325,7 +1472,7 @@ export class ZigStyleChecker {
    */
   private static formatAnalysisResults(title: string, sections: Record<string, string[]>): string {
     const results: string[] = [];
-    
+
     for (const [sectionName, items] of Object.entries(sections)) {
       if (items.length > 0) {
         const emoji = this.getSectionEmoji(sectionName);
@@ -1352,9 +1499,9 @@ export class ZigStyleChecker {
       insights: '📊',
       advanced: '🚀',
       modern: '✨',
-      metrics: '📈'
+      metrics: '📈',
     };
-    
+
     return emojiMap[sectionName] || '📋';
   }
 

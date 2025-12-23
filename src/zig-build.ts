@@ -21,7 +21,7 @@ export class ZigBuildSystemHelper {
    */
   static generateBuildZig(config: Partial<ZigBuildConfig>): string {
     const {
-      zigVersion = '0.12.0',
+      zigVersion = '0.15.2',
       buildMode: _buildMode = 'ReleaseSafe',
       targetTriple: _targetTriple,
       dependencies = {},
@@ -29,7 +29,8 @@ export class ZigBuildSystemHelper {
     } = config;
 
     return `//! Build script for Zig project
-//! Zig version: ${zigVersion}
+//! Zig version: ${zigVersion} or later
+//! Modern build system with enhanced module support
 
 const std = @import("std");
 
@@ -46,12 +47,12 @@ pub fn build(b: *std.Build) void {
     // Create the main executable
     const exe = b.addExecutable(.{
         .name = "main",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // Add dependencies
+    // Add dependencies using modern module system
 ${Object.entries(dependencies)
   .map(
     ([name, _path]) =>
@@ -59,7 +60,7 @@ ${Object.entries(dependencies)
         .target = target,
         .optimize = optimize,
     });
-    exe.linkLibrary(${name}_dep.artifact("${name}"));`
+    exe.root_module.addImport("${name}", ${name}_dep.module("${name}"));`
   )
   .join('\n')}
 
@@ -80,7 +81,7 @@ ${Object.entries(dependencies)
 
     // Create test step
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -88,6 +89,15 @@ ${Object.entries(dependencies)
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
+
+    // Add documentation generation step
+    const docs_step = b.step("docs", "Generate documentation");
+    const docs_install = b.addInstallDirectory(.{
+        .source_dir = exe.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    docs_step.dependOn(&docs_install.step);
 }`;
   }
 
@@ -98,7 +108,7 @@ ${Object.entries(dependencies)
     return `.{
     .name = "my-project",
     .version = "0.1.0",
-    .minimum_zig_version = "0.12.0",
+    .minimum_zig_version = "0.15.2",
     
     .dependencies = .{
 ${dependencies
@@ -127,7 +137,7 @@ ${dependencies
    * Provides Zig build system best practices
    */
   static getBuildSystemBestPractices(): string {
-    return `# Zig Build System Best Practices
+    return `# Zig Build System Best Practices (Zig 0.15.2+)
 
 ## Project Structure
 \`\`\`
@@ -143,25 +153,26 @@ my-project/
 └── docs/            # Documentation
 \`\`\`
 
-## Build.zig Modern Patterns
+## Build.zig Modern Patterns (Zig 0.15.2+)
 
-### 1. Use the new Build API (Zig 0.11+)
+### 1. Use b.path() for File Paths (Zig 0.14+)
 \`\`\`zig
 const exe = b.addExecutable(.{
     .name = "my-app",
-    .root_source_file = .{ .path = "src/main.zig" },
+    .root_source_file = b.path("src/main.zig"),  // Modern: use b.path()
     .target = target,
     .optimize = optimize,
 });
 \`\`\`
 
-### 2. Dependency Management with build.zig.zon
+### 2. Modern Module System with root_module
 \`\`\`zig
 const dep = b.dependency("my_dep", .{
     .target = target,
     .optimize = optimize,
 });
-exe.addModule("my_dep", dep.module("my_dep"));
+// Use root_module.addImport for cleaner module management
+exe.root_module.addImport("my_dep", dep.module("my_dep"));
 \`\`\`
 
 ### 3. Cross-compilation Support
@@ -239,13 +250,26 @@ zig build -Dtarget=wasm32-freestanding-musl
 zig build -Dtarget=aarch64-linux-gnu
 \`\`\`
 
-## Common Gotchas
+## Common Gotchas & Migration Tips
 
-1. **Always specify .target and .optimize** in new build API
-2. **Use .{ .path = "file.zig" }** instead of just "file.zig" 
-3. **Dependencies must be declared in build.zig.zon** for Zig 0.11+
-4. **Use b.dependency() instead of @import()** for external dependencies
-5. **Install artifacts with b.installArtifact()** instead of manual install steps`;
+### Zig 0.15.2 Changes:
+1. **Use b.path()** instead of .{ .path = "file.zig" } for file paths
+2. **Use root_module.addImport()** for adding module dependencies
+3. **Always specify .target and .optimize** in build API
+4. **Dependencies must be declared in build.zig.zon** for Zig 0.11+
+5. **Use b.dependency() instead of @import()** for external dependencies
+6. **Install artifacts with b.installArtifact()** instead of manual install steps
+
+### Migration from 0.12 to 0.15.2:
+\`\`\`zig
+// Old (0.12):
+.root_source_file = .{ .path = "src/main.zig" },
+exe.addModule("dep", dep.module("dep"));
+
+// New (0.15.2):
+.root_source_file = b.path("src/main.zig"),
+exe.root_module.addImport("dep", dep.module("dep"));
+\`\`\``;
   }
 
   /**
@@ -273,6 +297,29 @@ zig build -Dtarget=aarch64-linux-gnu
       );
     }
 
+    // Check for Zig 0.15.2+ patterns
+    if (buildZigContent.includes('.{ .path = ') && !buildZigContent.includes('b.path(')) {
+      recommendations.push(
+        'Modernize to Zig 0.15.2+: use b.path("file.zig") instead of .{ .path = "file.zig" }'
+      );
+    }
+
+    if (
+      buildZigContent.includes('.addModule(') &&
+      !buildZigContent.includes('root_module.addImport(')
+    ) {
+      recommendations.push(
+        'Modernize to Zig 0.15.2+: use exe.root_module.addImport() instead of exe.addModule()'
+      );
+    }
+
+    if (
+      buildZigContent.includes('linkLibrary') &&
+      !buildZigContent.includes('root_module.addImport')
+    ) {
+      recommendations.push('Consider using root_module.addImport() for modern module dependencies');
+    }
+
     // Check for missing best practices
     if (!buildZigContent.includes('standardTargetOptions')) {
       recommendations.push('Add standardTargetOptions() for cross-compilation support');
@@ -288,6 +335,12 @@ zig build -Dtarget=aarch64-linux-gnu
 
     if (!buildZigContent.includes('installArtifact')) {
       recommendations.push('Use installArtifact() to install built executables/libraries');
+    }
+
+    if (!buildZigContent.includes('getEmittedDocs')) {
+      recommendations.push(
+        'Add documentation generation with getEmittedDocs() and addInstallDirectory()'
+      );
     }
 
     return recommendations.length > 0

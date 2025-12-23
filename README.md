@@ -7,30 +7,33 @@ A powerful Model Context Protocol (MCP) server that provides comprehensive Zig l
 
 <a href="https://glama.ai/mcp/servers/oxiw2bsb15"><img width="380" height="200" src="https://glama.ai/mcp/servers/oxiw2bsb15/badge" alt="Zig Server MCP server" /></a>
 
-## 🚀 What's New in v0.2.0
+## 🚀 What's New in v0.2.0+
 
-- **🏗️ Modern Build System Support**: Generate and analyze build.zig files with Zig 0.12+ patterns
-- **📦 Dependency Management**: Create build.zig.zon files for modern package management  
-- **🔧 Enhanced Code Analysis**: Improved optimization suggestions and pattern detection
+- **🏗️ Zig 0.15.2+ Support**: Fully updated with modern `b.path()` and `root_module` patterns
+- **📦 Enhanced Module System**: Support for latest module system with `root_module.addImport()`
+- **🔄 Migration Guidance**: Automated detection and upgrade suggestions for legacy patterns
+- **🔧 Enhanced Code Analysis**: Improved optimization suggestions and modern pattern detection
 - **🧪 Comprehensive Testing**: 85+ test cases with full coverage reporting
-- **⚡ Better Performance**: Modular architecture with improved error handling
-- **📚 Extended Documentation**: Build system troubleshooting and best practices guides
+- **⚡ Better Code Quality**: Fixed all TypeScript compilation errors and linting issues
+- **📚 Extended Documentation**: Complete Zig 0.15.2+ build system guide with migration tips
 
 ## 🛠️ Features
 
 ### 🏗️ Build System Tools (NEW!)
 
 #### 1. Build System Generation (`generate_build_zig`)
-Generate modern build.zig files with Zig 0.12+ patterns:
-- Cross-compilation support
-- Modern dependency management
+Generate modern build.zig files with Zig 0.15.2+ patterns:
+- Cross-compilation support with latest target options
+- Modern dependency management with build.zig.zon
 - Test and documentation integration
+- Enhanced module system support
 
 #### 2. Build System Analysis (`analyze_build_zig`) 
 Analyze existing build files and get modernization recommendations:
 - Detect deprecated patterns
-- Suggest Zig 0.12+ alternatives
+- Suggest Zig 0.15.2+ alternatives
 - Identify missing best practices
+- Module system migration guidance
 
 #### 3. Dependency Management (`generate_build_zon`)
 Generate build.zig.zon files for modern package management:
