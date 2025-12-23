@@ -272,7 +272,7 @@ class ZigServer {
               zigVersion: {
                 type: 'string',
                 description: 'Target Zig version',
-                default: '0.12.0',
+                default: '0.15.2',
               },
               dependencies: {
                 type: 'array',
